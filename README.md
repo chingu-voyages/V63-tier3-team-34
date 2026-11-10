@@ -26,6 +26,8 @@ There are two ways to run the project, depending on your OS. Both give you hot r
 
 ### macOS / Linux
 
+Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and [Node.js](https://nodejs.org/) from their installers (or `brew install --cask docker` and `brew install node`). Start Docker Desktop before running `make dev`. Node is still needed on your machine even though the app runs in containers: your editor, lint and the git hooks use it.
+
 ```bash
 git clone https://github.com/chingu-voyages/V63-tier3-team-34.git
 cd V63-tier3-team-34
