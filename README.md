@@ -158,7 +158,7 @@ GitHub Actions runs on every push to `main` and every pull request ([.github/wor
 1. **Lint, typecheck, test, build**: `format:check`, `lint`, `typecheck`, `test` and `build` for both apps.
 2. **Docker build + smoke test**: builds both production images, starts the full compose stack, and checks that the client page and the API health endpoint respond.
 
-Both jobs must pass before merging. [Dependabot](./.github/dependabot.yml) opens weekly PRs for npm packages, GitHub Actions and Docker base images; minor and patch npm updates are grouped into one PR.
+Both jobs must pass before merging.
 
 There is no deployment step yet. When the team picks a host, a deploy job goes at the end of this workflow.
 
