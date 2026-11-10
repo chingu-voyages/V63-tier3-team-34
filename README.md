@@ -153,7 +153,7 @@ Tests use [Vitest](https://vitest.dev) in both apps. Files are named `*.test.ts`
 - **Client:** [Testing Library](https://testing-library.com/docs/react-testing-library/intro) with jsdom. See `client/src/App.test.tsx` for the pattern.
 - **Server:** [Supertest](https://github.com/ladjs/supertest) against the Express app without starting a listener. See `server/src/app.test.ts`.
 
-GitHub Actions runs on every push to `main` and every pull request ([.github/workflows/ci.yml](./.github/workflows/ci.yml)):
+GitHub Actions runs on every push to `main` or `development` and every pull request ([.github/workflows/ci.yml](./.github/workflows/ci.yml)):
 
 1. **Lint, typecheck, test, build**: `format:check`, `lint`, `typecheck`, `test` and `build` for both apps.
 2. **Docker build + smoke test**: builds both production images, starts the full compose stack, and checks that the client page and the API health endpoint respond.
