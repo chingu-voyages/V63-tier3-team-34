@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "oxc"],
+  "env": { "node": true },
+  "ignorePatterns": ["dist"],
+  "rules": {
+    "no-debugger": "error",
+    "no-unused-vars": "error",
+    "prefer-const": "error",
+    "no-var": "error"
+  }
+}
