@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import {
   CalendarDays,
   LayoutDashboard,
@@ -9,12 +8,12 @@ import {
   Plus,
   Settings,
   Users,
-  MapPin,
-  Clock,
+  // MapPin,
+  // Clock,
   CheckCircle2,
   PlayCircle,
   ChevronDown,
-  ArrowRight,
+  // ArrowRight,
   Search,
   Menu,
   X,
@@ -45,12 +44,13 @@ export default function EventsDashboard() {
   const [events] = useState<Event[]>(exampleEvents)
   const [search, setSearch] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [user, setUser] = useState({ firstName: 'First', lastName: 'Last', role: 'Guest' })
   const [statusFilter, setStatusFilter] = useState<EventFilter>('All')
   const [selection, setSelection] = useState('Dashboard')
   const [currentPage, setCurrentPage] = useState(1)
 
   const EVENTS_PER_PAGE = 12
+
+  const user = { firstName: 'First', lastName: 'Last', role: 'Guest' }
 
   const handleSave = (event: EventData) => {
     console.log('Event saved:', event)

@@ -5,13 +5,12 @@ import {
   MapPin,
   ImagePlus,
   ChevronDown,
-  ArrowLeft,
+  // ArrowLeft,
   Users,
   Settings,
   X,
-  Upload,
+  // Upload,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
 
 export interface EventData {
   id?: string
@@ -51,8 +50,6 @@ export default function CreateEvent({ initialEvent, onSave, onCancel }: CreateEd
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const isEditing = Boolean(initialEvent)
-
-  const navigate = useNavigate()
 
   const updateField = (field: keyof EventData, value: string) => {
     setEvent((prev) => ({
