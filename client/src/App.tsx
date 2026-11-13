@@ -1,20 +1,22 @@
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+// import type { EventData } from './components/dashboard/CreateEvent'
+import EventDashboard from './components/dashboard/EventDashboard'
 
 function App() {
-  const [count, setCount] = useState(0)
+  // const handleSave = (event: EventData) => {
+  //   console.log('Event saved:', event)
+  // }
+
+  // const handleCancel = () => {
+  //   console.log('Event creation cancelled')
+  // }
 
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-8">
-      <h1 className="text-3xl font-semibold tracking-tight">Client</h1>
-      <p className="text-muted-foreground">React 19 + TypeScript + Tailwind CSS + shadcn/ui</p>
-      <div className="flex items-center gap-3">
-        <Button onClick={() => setCount((c) => c + 1)}>Count: {count}</Button>
-        <Button variant="outline" onClick={() => setCount(0)}>
-          Reset
-        </Button>
-      </div>
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/eventdashboard" element={<EventDashboard />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
