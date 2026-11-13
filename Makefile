@@ -10,7 +10,7 @@
 # The dev targets run `install` first so both stay in sync.
 
 COMPOSE      := docker compose
-COMPOSE_DEV  := docker compose -f docker-compose.yml -f docker-compose.dev.yml
+COMPOSE_DEV  := docker compose -f docker-compose.dev.yml
 
 .DEFAULT_GOAL := help
 .PHONY: help install install-fe install-be sync sync-fe sync-be dev dev-fe dev-be db up up-fe up-be build down clean logs ps lint typecheck

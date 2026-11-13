@@ -1,36 +1,56 @@
-# Development overrides: hot reload with source bind-mounted into the containers.
-# Used via the Makefile (make dev / dev-fe / dev-be), or directly:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-#
-# node_modules live in named volumes so the container's Linux install never
-# collides with the macOS/Windows install on your host.
-
+# Standalone development stack: docker compose -f docker-compose.dev.yml up -d
 services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   server:
-    build: !reset null
     image: node:24-alpine
     working_dir: /app
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "npm ci && npm run dev"
     environment:
       NODE_ENV: development
-      CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5173}
+      PORT: 3000
+      CLIENT_ORIGIN: http://localhost:${CLIENT_DEV_PORT:-5173}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-app}
+    ports:
+      - '${SERVER_PORT:-3000}:3000'
     volumes:
       - ./server:/app
       - server_node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
 
   client:
-    build: !reset null
     image: node:24-alpine
     working_dir: /app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort"
     environment:
       VITE_API_PROXY: http://server:3000
-    ports: !override
+      VITE_USE_POLLING: 'true'
+    ports:
       - '${CLIENT_DEV_PORT:-5173}:5173'
     volumes:
       - ./client:/app
       - client_node_modules:/app/node_modules
+    depends_on:
+      - server
 
 volumes:
+  postgres_data:
   server_node_modules:
   client_node_modules:

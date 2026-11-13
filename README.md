@@ -46,7 +46,23 @@ npm install                   # installs root, client/ and server/ dependencies 
 npm run dev                   # starts Postgres in Docker, then the server and client natively
 ```
 
-Why the difference: `make dev` bind-mounts the source folders into Linux containers. On Windows, file-change events don't cross from the Windows filesystem into Docker, so hot reload silently stops working. Running Node natively avoids that. Line endings are forced to LF by `.gitattributes`, so you don't need to change `core.autocrlf`.
+Running Node natively on Windows avoids Docker bind-mount file notification issues. The full Docker option below enables polling for the client. If server changes are not detected on Windows, run `docker compose -f docker-compose.dev.yml restart server` or use the native `npm run dev` workflow.
+
+### Run everything in Docker (including Windows)
+
+Start Docker Desktop, then run `npm run dev:docker` from the project root.
+No host dependency install is needed: containers install from the lockfiles.
+Alternatively, run `docker compose -f docker-compose.dev.yml up -d`.
+
+- Client home page: http://localhost:5173
+- Server home page: http://localhost:3000
+- API health: http://localhost:3000/api/health
+
+Use `npm run docker:logs` to follow startup, and `npm run docker:down` to
+stop the stack while keeping database data. Initial startup downloads images
+and installs dependencies. Client file watching uses polling for Windows mounts.
+The development Compose file runs on its own; do not merge it with the production file.
+`npm run dev` remains available for running Node on the host with Postgres in Docker.
 
 ### What you get
 
