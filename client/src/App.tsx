@@ -18,12 +18,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* <Route path="/" element={<DemoHome />} /> */}
         <Route path="/eventdashboard" element={<EventDashboard />} />
-        <Route
-          path="/events/create"
-          element={<CreateEditEvent onSave={handleSave} onCancel={handleCancel} />}
-        />
       </Routes>
     </BrowserRouter>
   )
