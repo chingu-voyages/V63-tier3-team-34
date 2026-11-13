@@ -88,6 +88,7 @@
 }
 .main-nav a:hover,
 .main-nav button:hover,
+.footer-shell a:hover,
 .footer-shell button:hover {
   color: var(--purple);
 }
