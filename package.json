@@ -18,7 +18,10 @@
     "typecheck": "npm run typecheck --prefix client && npm run typecheck --prefix server",
     "test": "npm test --prefix client && npm test --prefix server",
     "format": "prettier --write . && npm run format --prefix client && npm run format --prefix server",
-    "format:check": "prettier --check . && npm run format:check --prefix client && npm run format:check --prefix server"
+    "format:check": "prettier --check . && npm run format:check --prefix client && npm run format:check --prefix server",
+    "dev:docker": "docker compose -f docker-compose.dev.yml up -d",
+    "docker:logs": "docker compose -f docker-compose.dev.yml logs -f",
+    "docker:down": "docker compose -f docker-compose.dev.yml down"
   },
   "devDependencies": {
     "concurrently": "^10.0.7",

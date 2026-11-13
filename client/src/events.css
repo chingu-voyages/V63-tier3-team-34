@@ -1,0 +1,77 @@
+.event-card {
+  position: relative;
+}
+.event-card-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 17px;
+}
+.event-card-link:focus-visible::after {
+  outline: 3px solid #6355e9;
+  outline-offset: 4px;
+}
+.event-card .rsvp {
+  position: relative;
+  z-index: 1;
+}
+.event-page {
+  min-height: 65vh;
+  padding-block: 40px 64px;
+}
+.home-page .event-page h1 {
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1.15;
+  margin-block: 12px 20px;
+}
+.event-page > .text-link {
+  margin-bottom: 32px;
+}
+.event-details-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+.event-detail-art {
+  height: 320px;
+  margin-bottom: 28px;
+}
+.event-about h2 {
+  margin-block: 32px 12px;
+  font-size: 25px;
+}
+.event-about p {
+  font-size: 17px;
+  line-height: 1.7;
+}
+.event-booking {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 28px;
+  background: white;
+  border: 1px solid #eeebf2;
+  border-radius: 18px;
+  position: sticky;
+  top: 24px;
+}
+.event-booking .rsvp {
+  width: 100%;
+}
+.event-booking small {
+  color: #566074;
+}
+@media (max-width: 700px) {
+  .event-details-layout {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+  .event-booking {
+    position: static;
+  }
+  .event-detail-art {
+    height: 230px;
+  }
+}
