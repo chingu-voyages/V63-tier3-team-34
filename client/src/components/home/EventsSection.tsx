@@ -8,19 +8,27 @@ export function EventsSection({
   ...props
 }: EventGridProps & { setModal: (modal: string) => void }) {
   return (
-    <section className="events-section section-shell" id="events">
-      <button className="location-chip" onClick={() => setModal('location')}>
+    <section className="py-11 mx-auto w-full max-w-7xl px-7 max-[850px]:px-5.5" id="events">
+      <Button
+        type="button"
+        variant="outline"
+        className="h-auto rounded-full border-[#dcdcf3] bg-secondary px-4.25 py-1 text-[13px] [&_svg]:text-[#5949ed] [&_span]:text-[#5949ed] [&_span]:underline [&_span]:decoration-dotted font-normal"
+        onClick={() => setModal('location')}
+      >
         <MapPin size={16} /> {props.city}, FL (Demo location) <span>Change</span>
-      </button>
-      <div className="section-heading">
+      </Button>
+      <div className="mt-2 mb-7.25 flex items-end justify-between gap-7 max-[580px]:flex-col max-[580px]:items-start max-[580px]:gap-3">
         <h2>Browsing events in your current location</h2>
-        <Link className="text-link" to="/events">
+        <Link
+          className="inline-flex items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring [&_svg]:size-4"
+          to="/events"
+        >
           View all events <ArrowRight />
         </Link>
       </div>
       <EventGrid {...props} limit={3} />
-      <div className="view-all">
-        <Button className="home-button soft" asChild>
+      <div className="mt-8 flex justify-center">
+        <Button variant="secondary" asChild>
           <Link to="/events">
             View all events in {props.city} <ArrowRight />
           </Link>

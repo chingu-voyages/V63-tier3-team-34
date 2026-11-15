@@ -1,9 +1,15 @@
+import { Avatar, AvatarFallback, AvatarGroup } from '@/components/ui/avatar'
+
 export function Avatars({ names = ['JD', 'KL', 'SR', '+6'] }: { names?: string[] }) {
   return (
-    <div className="avatars" aria-label="Attendees">
+    <AvatarGroup className="shrink-0" aria-label="Attendees">
       {names.map((name) => (
-        <span key={name}>{name}</span>
+        <Avatar key={name} size="sm">
+          <AvatarFallback className="bg-[#e3ddff] font-mono text-[10px] font-semibold text-[#2d2171]">
+            {name}
+          </AvatarFallback>
+        </Avatar>
       ))}
-    </div>
+    </AvatarGroup>
   )
 }

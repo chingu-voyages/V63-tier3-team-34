@@ -1,5 +1,18 @@
 import { AudioLines, Brain, Sunrise } from 'lucide-react'
 
+export const heroContent = {
+  rating: {
+    score: '4.9/5',
+    description: 'from 2,500+ modern organizers',
+  },
+  description:
+    'Create stunning events, pack the room, and get automated AI recaps in seconds. Frictionless web RSVP with no app download required for your guests.',
+  socialProof: {
+    names: ['AK', 'MR', 'SO', '+2.4k'],
+    description: 'checked in this week across SF, NYC, and London',
+  },
+}
+
 export const events = [
   {
     id: 'ai',
@@ -44,7 +57,18 @@ export const events = [
 
 export type Event = (typeof events)[number]
 
-export const featuredEvent: Event = {
+export const featuredEvent: Event & {
+  goingCount: number
+  city: string
+  displayId: string
+  image: string
+  imageAlt: string
+} = {
+  image: '/event_pic.avif',
+  imageAlt: 'Founders and builders mixer event',
+  goingCount: 142,
+  city: 'NYC',
+  displayId: '#MIX-14',
   id: 'featured',
   category: 'FOUNDERS & SOCIAL',
   status: 'Going (142)',

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 
@@ -12,6 +12,40 @@ describe('App', () => {
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Full event hype.')
     expect(screen.getByRole('heading', { name: 'How it works' })).toBeTruthy()
   })
+
+  it('opens mobile navigation and closes it after navigating', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle navigation' }))
+    const navigation = screen.getByRole('dialog', { name: 'EventAI' })
+    fireEvent.click(within(navigation).getByRole('link', { name: 'Features' }))
+    expect(window.location.hash).toBe('#features')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('submits the sign-in preview and closes the dialog', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
+    const dialog = screen.getByRole('dialog', { name: 'Welcome to EventAI' })
+    fireEvent.change(within(dialog).getByLabelText('Email address'), {
+      target: { value: 'guest@example.com' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue with email' }))
+    expect(within(dialog).getByRole('status').textContent).toContain('available at launch')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it.each(['/', '/events', '/events/ai', '/events/missing', '/missing'])(
+    'keeps the official repository link in the footer on %s',
+    (path) => {
+      window.history.replaceState({}, '', path)
+      render(<App />)
+      const footer = screen.getByRole('contentinfo')
+      expect(
+        within(footer).getByRole('link', { name: 'GitHub repository' }).getAttribute('href'),
+      ).toBe('https://github.com/chingu-voyages/V63-tier3-team-34')
+    },
+  )
 
   it('confirms and cancels an event RSVP', () => {
     render(<App />)

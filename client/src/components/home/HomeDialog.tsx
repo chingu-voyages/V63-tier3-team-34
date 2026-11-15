@@ -1,7 +1,16 @@
 import { ArrowRight } from 'lucide-react'
 import { useState } from 'react'
-import { Dialog } from 'radix-ui'
-import { Check, MapPin, X, Zap } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { featuredEvent } from '@/data/events'
+import { Check, MapPin, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function HomeDialog({
@@ -21,7 +30,7 @@ export function HomeDialog({
 }) {
   const [emailSent, setEmailSent] = useState(false)
   return (
-    <Dialog.Root
+    <Dialog
       open={modal !== null}
       onOpenChange={(open) => {
         if (!open) {
@@ -30,16 +39,12 @@ export function HomeDialog({
         }
       }}
     >
-      <Dialog.Portal>
-        <Dialog.Overlay className="home-dialog-overlay" />
-        <Dialog.Content className="home-dialog">
-          <Dialog.Close className="dialog-close" aria-label="Close">
-            <X size={20} />
-          </Dialog.Close>
-          <span className="icon-tile tone-0">
-            <Zap />
-          </span>
-          <Dialog.Title>
+      <DialogContent className="rounded-[18px] p-7.5 sm:max-w-115">
+        <span className="inline-flex size-12 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground [&_svg]:size-6">
+          <Zap />
+        </span>
+        <DialogHeader>
+          <DialogTitle>
             {modal === 'demo'
               ? 'Your guest demo is ready'
               : modal === 'signin'
@@ -47,8 +52,8 @@ export function HomeDialog({
                 : modal === 'location'
                   ? 'Find your community'
                   : modal}
-          </Dialog.Title>
-          <Dialog.Description>
+          </DialogTitle>
+          <DialogDescription>
             {modal === 'demo'
               ? 'Try a local preview of our frictionless RSVP. No account or credit card needed.'
               : modal === 'signin'
@@ -56,56 +61,57 @@ export function HomeDialog({
                 : modal === 'location'
                   ? 'Choose a nearby city to explore this event browsing preview.'
                   : `${modal} information will be available when EventAI launches. This homepage is a preview.`}
-          </Dialog.Description>
-          {modal === 'demo' && (
-            <div className="demo-content">
-              <h3>Founders & Builders Mixer #14</h3>
-              <Button className="home-button green" onClick={() => rsvp('featured')}>
-                {joined.includes('featured') ? (
-                  <>
-                    <Check /> RSVP confirmed — you’re going!
-                  </>
-                ) : (
-                  'Try 1-Tap RSVP'
-                )}
+          </DialogDescription>
+        </DialogHeader>
+        {modal === 'demo' && (
+          <div className="flex flex-col gap-4 [&_small]:text-muted-foreground">
+            <h3>{featuredEvent.title}</h3>
+            <Button variant="success" onClick={() => rsvp(featuredEvent.id)}>
+              {joined.includes(featuredEvent.id) ? (
+                <>
+                  <Check /> RSVP confirmed — you’re going!
+                </>
+              ) : (
+                'Try 1-Tap RSVP'
+              )}
+            </Button>
+            <small>This is a demo RSVP. No real reservation is made.</small>
+          </div>
+        )}
+        {modal === 'signin' && (
+          <form
+            className="flex flex-col gap-4 [&_p]:text-sm"
+            onSubmit={(event) => {
+              event.preventDefault()
+              setEmailSent(true)
+            }}
+          >
+            <Label htmlFor="email">Email address</Label>
+            <Input id="email" type="email" placeholder="you@example.com" required />
+            <Button type="submit">
+              Continue with email <ArrowRight />
+            </Button>
+            {emailSent && <p role="status">Thanks! Email sign-in will be available at launch.</p>}
+          </form>
+        )}
+        {modal === 'location' && (
+          <div className="flex flex-col gap-3">
+            {['Miami', 'Miami Beach', 'Fort Lauderdale'].map((location) => (
+              <Button
+                variant="secondary"
+                key={location}
+
+                onClick={() => {
+                  setCity(location)
+                  setModal(null)
+                }}
+              >
+                <MapPin /> {location} {city === location && <Check />}
               </Button>
-              <small>This is a demo RSVP. No real reservation is made.</small>
-            </div>
-          )}
-          {modal === 'signin' && (
-            <form
-              className="signin-form"
-              onSubmit={(event) => {
-                event.preventDefault()
-                setEmailSent(true)
-              }}
-            >
-              <label htmlFor="email">Email address</label>
-              <input id="email" type="email" placeholder="you@example.com" required />
-              <Button className="home-button" type="submit">
-                Continue with email <ArrowRight />
-              </Button>
-              {emailSent && <p role="status">Thanks! Email sign-in will be available at launch.</p>}
-            </form>
-          )}
-          {modal === 'location' && (
-            <div className="city-options">
-              {['Miami', 'Miami Beach', 'Fort Lauderdale'].map((location) => (
-                <Button
-                  key={location}
-                  className="home-button soft"
-                  onClick={() => {
-                    setCity(location)
-                    setModal(null)
-                  }}
-                >
-                  <MapPin /> {location} {city === location && <Check />}
-                </Button>
-              ))}
-            </div>
-          )}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

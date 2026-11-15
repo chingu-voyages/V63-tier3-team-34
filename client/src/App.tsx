@@ -11,8 +11,6 @@ import { FeaturesSection } from '@/components/home/FeaturesSection'
 import { CallToActionSection } from '@/components/home/CallToActionSection'
 import { Footer } from '@/components/home/Footer'
 import { HomeDialog } from '@/components/home/HomeDialog'
-import './home.css'
-import './events.css'
 
 function App() {
   return (
@@ -37,7 +35,10 @@ function AppContent() {
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
     )
   return (
-    <div className="home-page" id="top">
+    <div
+      className="min-h-screen bg-background text-foreground [&_h1]:font-bold [&_h1]:tracking-tight text-[15px] leading-[1.55] [&_h2]:text-[clamp(26px,2.3vw,36px)] [&_h2]:font-bold [&_h2]:leading-tight [&_h2]:tracking-[-0.9px] [&_h3]:text-[25px] [&_h3]:font-bold [&_h3]:leading-[1.3] [&_h3]:tracking-[-0.5px] [&_p]:text-muted-foreground"
+      id="top"
+    >
       <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} setModal={setModal} />
       <main>
         <Routes>
@@ -65,9 +66,12 @@ function AppContent() {
           <Route
             path="*"
             element={
-              <section className="event-page section-shell">
-                <h1>Page not found</h1>
-                <Link className="text-link" to="/">
+              <section className="mx-auto w-full max-w-7xl px-7 max-[850px]:px-5.5 min-h-[65vh] pt-10 pb-16">
+                <h1 className="mt-3 mb-5 text-3xl leading-tight sm:text-5xl">Page not found</h1>
+                <Link
+                  className="inline-flex items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-ring [&_svg]:size-4"
+                  to="/"
+                >
                   Back to home
                 </Link>
               </section>
