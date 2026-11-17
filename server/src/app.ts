@@ -10,6 +10,10 @@ export const app = express()
 app.use(cors({ origin: config.clientOrigin }))
 app.use(express.json())
 
+app.get('/api', (_req, res) => {
+  res.json({ message: 'API is running', health: '/api/health' })
+})
+
 app.use('/api/health', healthRouter)
 app.use('/api/events', eventsRouter)
 

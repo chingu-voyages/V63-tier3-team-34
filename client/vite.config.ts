@@ -12,6 +12,7 @@ export default defineConfig({
     },
   },
   server: {
+    watch: { usePolling: process.env.VITE_USE_POLLING === 'true' },
     // Forward /api to the Express server so the client can use relative URLs
     // in every environment. Overridden in docker-compose.dev.yml.
     proxy: {
