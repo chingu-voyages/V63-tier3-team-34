@@ -2,6 +2,7 @@ import cors from 'cors'
 import express from 'express'
 import { config } from './config.js'
 import { errorHandler, notFound } from './middleware/error-handler.js'
+import { eventsRouter } from './routes/events.js'
 import { healthRouter } from './routes/health.js'
 
 export const app = express()
@@ -14,6 +15,7 @@ app.get('/api', (_req, res) => {
 })
 
 app.use('/api/health', healthRouter)
+app.use('/api/events', eventsRouter)
 
 app.use(notFound)
 app.use(errorHandler)
