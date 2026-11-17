@@ -83,13 +83,13 @@ Components land in `client/src/components/ui/` and are imported as `@/components
 
 ## Linting, formatting and git hooks
 
-- **Linting:** [oxlint](https://oxc.rs/docs/guide/usage/linter) in both apps. `npm run lint` / `npm run lint:fix`, or `make lint` for both.
+- **Linting:** [ESLint](https://eslint.org) with [typescript-eslint](https://typescript-eslint.io) in both apps, configured in `client/eslint.config.js` and `server/eslint.config.js`. `npm run lint` / `npm run lint:fix`, or `make lint` for both.
 - **Formatting:** [Prettier](https://prettier.io), config in [.prettierrc](./.prettierrc) at the root. `npm run format`, or `make format` for everything.
 - **Editor:** see [Editor setup](#editor-setup-vs-code) below.
 
 A pre-commit hook (via [Husky](https://typicode.github.io/husky) and [lint-staged](https://github.com/lint-staged/lint-staged)) runs on every commit:
 
-1. `oxlint --fix` on staged `.ts`/`.tsx` files: auto-fixable problems are fixed, anything else fails the commit.
+1. `eslint --fix` on staged `.ts`/`.tsx` files: auto-fixable problems are fixed, anything else fails the commit.
 2. `prettier --write` on staged code, CSS, JSON, Markdown and YAML files.
 3. The fixed files are re-staged, so what you commit is what the hook produced.
 
@@ -103,14 +103,14 @@ If you missed the prompt, install them by hand. Open the Extensions view (`Cmd+S
 
 | Extension                 | ID                          | What it does                                     |
 | ------------------------- | --------------------------- | ------------------------------------------------ |
-| Oxc                       | `oxc.oxc-vscode`            | Shows oxlint errors inline as you type           |
+| ESLint                    | `dbaeumer.vscode-eslint`    | Shows ESLint errors inline as you type           |
 | Prettier - Code formatter | `esbenp.prettier-vscode`    | Formats on save using the repo's `.prettierrc`   |
 | Tailwind CSS IntelliSense | `bradlc.vscode-tailwindcss` | Autocomplete and hover docs for Tailwind classes |
 
 Or from a terminal:
 
 ```bash
-code --install-extension oxc.oxc-vscode
+code --install-extension dbaeumer.vscode-eslint
 code --install-extension esbenp.prettier-vscode
 code --install-extension bradlc.vscode-tailwindcss
 ```
