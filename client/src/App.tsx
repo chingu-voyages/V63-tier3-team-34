@@ -11,11 +11,15 @@ import { FeaturesSection } from '@/components/home/FeaturesSection'
 import { CallToActionSection } from '@/components/home/CallToActionSection'
 import { Footer } from '@/components/home/Footer'
 import { HomeDialog } from '@/components/home/HomeDialog'
+import EventDashboard from '@/components/dashboard/EventDashboard'
 
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <Routes>
+        <Route path="/eventdashboard" element={<EventDashboard />} />
+        <Route path="*" element={<AppContent />} />
+      </Routes>
     </BrowserRouter>
   )
 }

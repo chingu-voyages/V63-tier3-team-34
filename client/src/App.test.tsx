@@ -7,6 +7,12 @@ describe('App', () => {
     window.history.replaceState({}, '', '/')
     vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   })
+  it('renders the events dashboard', () => {
+    window.history.replaceState({}, '', '/eventdashboard')
+    render(<App />)
+    expect(screen.getByRole('heading', { level: 1, name: 'Events Dashboard' })).toBeTruthy()
+  })
+
   it('renders the homepage sections', () => {
     render(<App />)
     expect(screen.getByRole('heading', { level: 1 }).textContent).toContain('Full event hype.')
