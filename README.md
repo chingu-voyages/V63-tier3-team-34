@@ -194,7 +194,7 @@ your repo access and to practice PR'ing with your team _before_ you start
 coding!
 
 - Michael Li: [GitHub](https://github.com/kayoMichael) / [LinkedIn](https://www.linkedin.com/in/michael-li-72115222b/)
-- Teammate name #2: [GitHub](https://github.com/ghaccountname) / [LinkedIn](https://linkedin.com/in/liaccountname)
+- Vandna Kapoor: [GitHub](https://github.com/vandnakapoor19) / [LinkedIn](https://www.linkedin.com/in/vandnakapoor/)
 
   ...
 
