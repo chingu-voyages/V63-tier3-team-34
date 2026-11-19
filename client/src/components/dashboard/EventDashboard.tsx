@@ -23,6 +23,7 @@ import EventCard from './EventCard'
 import { exampleEvents } from './exampleEvents'
 import CreateEvent from './CreateEvent'
 import type { EventData } from './CreateEvent'
+import EventDetails from './EventDetails'
 
 type EventFilter = 'All' | 'Upcoming' | 'Ongoing' | 'Past'
 
@@ -31,6 +32,8 @@ type EventStatus = 'Upcoming' | 'Ongoing' | 'Past'
 interface Event {
   id: number
   title: string
+  description?: string
+  eventType?: string
   admissionPrice: number
   maxGuests: number
   date: string
@@ -38,24 +41,49 @@ interface Event {
   location: string
   status: EventStatus
   image: string
+  attendees?: Attendee[]
+  // invitedGuests?: InvitedGuest[]
+}
+export interface Attendee {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+  status: 'Accepted' | 'Pending' | 'Declined'
 }
 
 export default function EventsDashboard() {
-  const [events] = useState<Event[]>(exampleEvents)
+  const [events, setEvents] = useState<Event[]>(exampleEvents)
+
+  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [search, setSearch] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<EventFilter>('All')
   const [selection, setSelection] = useState('Dashboard')
   const [currentPage, setCurrentPage] = useState(1)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
 
   const EVENTS_PER_PAGE = 12
 
   const user = { firstName: 'First', lastName: 'Last', role: 'Guest' }
 
-  const handleSave = (event: EventData) => {
-    console.log('Event saved:', event)
+  const handleSave = (updatedEvent: EventData) => {
+    setEvents((prevEvents) =>
+      prevEvents.map((event) =>
+        String(event.id) === String(updatedEvent.id)
+          ? {
+              ...event,
+              ...updatedEvent,
+              id: event.id,
+            }
+          : event,
+      ),
+    )
 
-    // Later, connect this to your backend/API.
+    setSelectedEvent(null)
+    setSelection('Dashboard')
+
+    setShowSuccessModal(true)
   }
 
   const handleCancel = () => {
@@ -376,7 +404,16 @@ export default function EventsDashboard() {
                 <>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {currentEvents.map((event) => (
-                      <EventCard key={event.id} event={event} />
+                      <div
+                        key={event.id}
+                        onClick={() => {
+                          setSelectedEvent(event)
+                          setSelection('Event Details')
+                        }}
+                        className="cursor-pointer transition duration-200 hover:-translate-y-1"
+                      >
+                        <EventCard event={event} />
+                      </div>
                     ))}
                   </div>
 
@@ -445,10 +482,88 @@ export default function EventsDashboard() {
             </section>
           </div>
         ) : null}
-        {selection === 'Create Event' ? (
+        {/* Event Details */}
+        {selection === 'Event Details' && selectedEvent && (
+          <EventDetails
+            event={{
+              ...selectedEvent,
+              id: String(selectedEvent.id),
+              description: selectedEvent.description || '',
+              eventType: selectedEvent.eventType || 'Other',
+            }}
+            onEdit={() => setSelection('Edit Event')}
+            onBack={() => {
+              setSelectedEvent(null)
+              setSelection('Dashboard')
+            }}
+          />
+        )}
+
+        {/* Edit Event */}
+        {selection === 'Edit Event' && selectedEvent && (
+          <CreateEvent
+            key={selectedEvent.id}
+            initialEvent={{
+              ...selectedEvent,
+              id: String(selectedEvent.id),
+              description: selectedEvent.description || '',
+              eventType: selectedEvent.eventType || 'Other',
+            }}
+            onSave={handleSave}
+            onCancel={() => setSelection('Event Details')}
+          />
+        )}
+
+        {/* Create Event */}
+        {selection === 'Create Event' && (
           <CreateEvent onSave={handleSave} onCancel={handleCancel} />
-        ) : null}
+        )}
       </main>
+      {/* Event Saved Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="success-modal-title"
+            className="relative w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl"
+          >
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowSuccessModal(false)}
+              aria-label="Close success modal"
+              className="absolute right-4 top-4 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+            >
+              <X size={20} />
+            </button>
+
+            {/* Success Icon */}
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle2 size={36} className="text-green-600" />
+            </div>
+
+            {/* Modal Content */}
+            <h2 id="success-modal-title" className="text-xl font-bold text-slate-900">
+              Event Saved Successfully!
+            </h2>
+
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              Your event has been saved successfully. You can now view and manage it from your
+              dashboard.
+            </p>
+
+            {/* Action Button */}
+            <button
+              type="button"
+              onClick={() => setShowSuccessModal(false)}
+              className="mt-7 w-full rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

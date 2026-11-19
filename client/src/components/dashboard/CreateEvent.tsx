@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   CalendarDays,
   Clock,
@@ -9,6 +9,8 @@ import {
   Users,
   Settings,
   X,
+  Search,
+  UserPlus,
   // Upload,
 } from 'lucide-react'
 
@@ -21,12 +23,42 @@ export interface EventData {
   location: string
   eventType: string
   image?: string
+  coordinates?: {
+    lat: number
+    lon: number
+  }
+  invitedGuests?: InvitedGuest[]
 }
 
 interface CreateEditEventProps {
   initialEvent?: EventData
   onSave: (event: EventData) => void
   onCancel: () => void
+}
+
+interface CitySuggestion {
+  name?: string
+  street?: string
+  housenumber?: string
+  city?: string
+  state?: string
+  postcode?: string
+  country?: string
+  formatted: string
+  lat: number
+  lon: number
+  result_type?: string
+}
+
+interface GeoapifyResponse {
+  results: CitySuggestion[]
+}
+
+export interface InvitedGuest {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
 }
 
 type Tab = 'details' | 'guests' | 'settings'
@@ -44,12 +76,108 @@ const defaultEvent: EventData = {
 export default function CreateEvent({ initialEvent, onSave, onCancel }: CreateEditEventProps) {
   const [activeTab, setActiveTab] = useState<Tab>('details')
   const [event, setEvent] = useState<EventData>(initialEvent || defaultEvent)
-
   const [imagePreview, setImagePreview] = useState(initialEvent?.image || '')
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [locationSelected, setLocationSelected] = useState(Boolean(initialEvent?.location))
+  const [locationError, setLocationError] = useState('')
+  const [invitedGuests, setInvitedGuests] = useState<InvitedGuest[]>(
+    initialEvent?.invitedGuests ?? [],
+  )
+  const [guestSearch, setGuestSearch] = useState('')
+  const [invitedSearch, setInvitedSearch] = useState('')
+
+  const exampleUsers: InvitedGuest[] = [
+    { id: 1, firstName: 'John', lastName: 'Smith', email: 'john.smith@example.com' },
+    { id: 2, firstName: 'Sarah', lastName: 'Johnson', email: 'sarah.j@example.com' },
+    { id: 3, firstName: 'Michael', lastName: 'Brown', email: 'michael.b@example.com' },
+    { id: 4, firstName: 'Emily', lastName: 'Davis', email: 'emily.d@example.com' },
+    { id: 5, firstName: 'David', lastName: 'Wilson', email: 'david.w@example.com' },
+    { id: 6, firstName: 'Jessica', lastName: 'Taylor', email: 'jessica.t@example.com' },
+    { id: 7, firstName: 'James', lastName: 'Anderson', email: 'james.a@example.com' },
+    { id: 8, firstName: 'Ashley', lastName: 'Thomas', email: 'ashley.t@example.com' },
+    { id: 9, firstName: 'Robert', lastName: 'Jackson', email: 'robert.j@example.com' },
+    { id: 10, firstName: 'Amanda', lastName: 'White', email: 'amanda.w@example.com' },
+    { id: 11, firstName: 'Daniel', lastName: 'Martin', email: 'daniel.m@example.com' },
+    { id: 12, firstName: 'Olivia', lastName: 'Harris', email: 'olivia.h@example.com' },
+    { id: 13, firstName: 'Christopher', lastName: 'Lee', email: 'chris.lee@example.com' },
+    { id: 14, firstName: 'Sophia', lastName: 'Clark', email: 'sophia.c@example.com' },
+    { id: 15, firstName: 'Matthew', lastName: 'Lewis', email: 'matthew.l@example.com' },
+  ]
+
+  const [selectedCoordinates, setSelectedCoordinates] = useState<{
+    lat: number
+    lon: number
+  } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const formRef = useRef<HTMLFormElement>(null)
+
   const isEditing = Boolean(initialEvent)
+
+  useEffect(() => {
+    const query = event.location.trim()
+
+    // Don't search until the user types at least 3 characters.
+    if (query.length < 3 || locationSelected) {
+      setCitySuggestions([])
+      setIsSearching(false)
+      return
+    }
+
+    const controller = new AbortController()
+
+    // Debounce requests to avoid calling the API on every keystroke.
+    const timeoutId = setTimeout(async () => {
+      setIsSearching(true)
+      setLocationError('')
+
+      try {
+        const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY
+
+        if (!apiKey) {
+          throw new Error('Missing Geoapify API key.')
+        }
+
+        const params = new URLSearchParams({
+          text: query,
+          format: 'json',
+          limit: '6',
+          apiKey,
+        })
+
+        const response = await fetch(`https://api.geoapify.com/v1/geocode/autocomplete?${params}`, {
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error('Unable to retrieve city suggestions.')
+        }
+
+        const data: GeoapifyResponse = await response.json()
+
+        setCitySuggestions(data.results || [])
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') {
+          return
+        }
+
+        console.error('Location autocomplete error:', error)
+        setCitySuggestions([])
+        setLocationError('Unable to load suggestions. Please try again.')
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearching(false)
+        }
+      }
+    }, 350)
+
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
+  }, [event.location, locationSelected])
 
   const updateField = (field: keyof EventData, value: string) => {
     setEvent((prev) => ({
@@ -87,7 +215,11 @@ export default function CreateEvent({ initialEvent, onSave, onCancel }: CreateEd
       return
     }
 
-    onSave(event)
+    onSave({
+      ...event,
+      invitedGuests,
+      coordinates: selectedCoordinates ?? undefined,
+    })
   }
 
   const tabs = [
@@ -101,9 +233,47 @@ export default function CreateEvent({ initialEvent, onSave, onCancel }: CreateEd
 
   const labelClass = 'mb-1.5 block text-xs font-semibold text-slate-800'
 
+  // Filter available users by first name, last name, or full name
+  const filteredUsers = exampleUsers.filter((user) => {
+    const search = guestSearch.toLowerCase().trim()
+
+    const fullName = `${user.firstName} ${user.lastName}`.toLowerCase()
+
+    const alreadyInvited = invitedGuests.some((guest) => guest.id === user.id)
+
+    return search.length > 0 && fullName.includes(search) && !alreadyInvited
+  })
+
+  // Filter the invited guests list
+  const filteredInvitedGuests = invitedGuests.filter((guest) => {
+    const search = invitedSearch.toLowerCase().trim()
+
+    const fullName = `${guest.firstName} ${guest.lastName}`.toLowerCase()
+
+    return fullName.includes(search) || guest.email.toLowerCase().includes(search)
+  })
+
+  // Add a guest
+  const addGuest = (user: InvitedGuest) => {
+    setInvitedGuests((prev) => {
+      if (prev.some((guest) => guest.id === user.id)) {
+        return prev
+      }
+
+      return [...prev, user]
+    })
+
+    setGuestSearch('')
+  }
+
+  // Remove a guest
+  const removeGuest = (guestId: number) => {
+    setInvitedGuests((prev) => prev.filter((guest) => guest.id !== guestId))
+  }
+
   return (
     <div className="w-full  flex items-center justify-center">
-      <div className="w-[680px] h-[700px] rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/50">
+      <div className="w-[680px] h-[720px] rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/50">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-5">
           <div className="flex items-center gap-3">
@@ -137,7 +307,7 @@ export default function CreateEvent({ initialEvent, onSave, onCancel }: CreateEd
           ))}
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form ref={formRef} onSubmit={handleSubmit}>
           {/* Event Details */}
           {activeTab === 'details' && (
             <div className="grid grid-cols-1 gap-5 p-6 sm:grid-cols-[1fr_180px]">
@@ -222,24 +392,94 @@ export default function CreateEvent({ initialEvent, onSave, onCancel }: CreateEd
                   </div>
                 </div>
 
-                {/* Location */}
+                {/* Location Autocomplete */}
                 <div>
-                  <label className={labelClass}>Location</label>
+                  <label className={labelClass}>Event Location</label>
 
                   <div className="relative">
-                    <MapPin
-                      size={15}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
-                    />
+                    <MapPin size={15} className="absolute left-3 top-3.5 z-10 text-slate-500" />
 
                     <input
                       type="text"
-                      placeholder="Enter event location"
+                      required
+                      placeholder="Search for a city worldwide..."
                       value={event.location}
-                      onChange={(e) => updateField('location', e.target.value)}
+                      autoComplete="off"
+                      onChange={(e) => {
+                        updateField('location', e.target.value)
+                        setLocationSelected(false)
+                        setLocationError('')
+                      }}
+                      onFocus={() => {
+                        if (event.location.trim().length >= 3) {
+                          setLocationSelected(false)
+                        }
+                      }}
                       className={`${inputClass} pl-9`}
                     />
+
+                    {/* Loading Indicator */}
+                    {isSearching && (
+                      <div className="absolute right-3 top-3">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+                      </div>
+                    )}
+
+                    {/* City Suggestions */}
+                    {citySuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                        {citySuggestions.map((city, index) => (
+                          <button
+                            key={`${city.lat}-${city.lon}-${index}`}
+                            type="button"
+                            onClick={() => {
+                              updateField('location', city.formatted)
+                              setSelectedCoordinates({
+                                lat: city.lat,
+                                lon: city.lon,
+                              })
+                              setLocationSelected(true)
+                              setCitySuggestions([])
+                            }}
+                            className="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left transition last:border-0 hover:bg-indigo-50"
+                          >
+                            <MapPin size={17} className="mt-1 shrink-0 text-indigo-500" />
+
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">
+                                {city.formatted}
+                              </p>
+
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                {[city.state, city.country].filter(Boolean).join(', ')}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Search Status */}
+                  {isSearching && (
+                    <p className="mt-2 text-xs text-slate-400">Searching worldwide...</p>
+                  )}
+
+                  {locationError && <p className="mt-2 text-xs text-red-500">{locationError}</p>}
+
+                  {!isSearching &&
+                    !locationError &&
+                    event.location.trim().length >= 3 &&
+                    !locationSelected &&
+                    citySuggestions.length === 0 && (
+                      <p className="mt-2 text-xs text-slate-400">
+                        No matching cities found. You can still enter a location manually.
+                      </p>
+                    )}
+
+                  <p className="mt-2 text-[10px] text-slate-400">
+                    Start typing to find cities anywhere in the world.
+                  </p>
                 </div>
 
                 {/* Event Type */}
@@ -332,37 +572,178 @@ export default function CreateEvent({ initialEvent, onSave, onCancel }: CreateEd
 
           {/* Guests Tab */}
           {activeTab === 'guests' && (
-            <div className="h-[498px] space-y-5 p-6">
+            <div className="min-h-[522px] max-h-[522px] space-y-5 p-6">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Guests & Invitations</h3>
-                <p className="mt-1 text-xs text-slate-500">Manage who can attend your event.</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Search for users and manage your event invitations.
+                </p>
               </div>
 
-              <div>
-                <label className={labelClass}>Invite Guests</label>
-                <textarea
-                  rows={4}
-                  placeholder="Enter guest email addresses, separated by commas..."
-                  className={inputClass}
-                />
+              {/* Guest Selection */}
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                {/* Find Guests */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className={labelClass}>Find Guests</label>
+                    <span className="text-xs text-slate-400">
+                      {exampleUsers.length - invitedGuests.length} available
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <Search
+                      size={16}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+
+                    <input
+                      type="text"
+                      value={guestSearch}
+                      onChange={(e) => setGuestSearch(e.target.value)}
+                      placeholder="Search first or last name..."
+                      className={`${inputClass} pl-9`}
+                    />
+
+                    {/* Matching Users Dropdown */}
+                    {guestSearch.trim().length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl">
+                        {filteredUsers.length > 0 ? (
+                          filteredUsers.map((user) => (
+                            <button
+                              key={user.id}
+                              type="button"
+                              onClick={() => addGuest(user)}
+                              className="flex w-full items-center justify-between border-b border-slate-100 px-3 py-3 text-left transition last:border-0 hover:bg-indigo-50"
+                            >
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800">
+                                  {user.firstName} {user.lastName}
+                                </p>
+                                <p className="mt-0.5 text-xs text-slate-400">{user.email}</p>
+                              </div>
+
+                              <UserPlus size={17} className="shrink-0 text-indigo-500" />
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-3 py-4 text-center text-xs text-slate-400">
+                            No matching users found.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-[10px] text-slate-400">
+                    Select a user from the search results to invite them.
+                  </p>
+                </div>
+
+                {/* Invited Guests */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className={labelClass}>Invited Guests</label>
+
+                    <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-600">
+                      {invitedGuests.length} invited
+                    </span>
+                  </div>
+
+                  {/* Search Existing Invitations */}
+                  <div className="relative">
+                    <Search
+                      size={16}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+
+                    <input
+                      type="text"
+                      value={invitedSearch}
+                      onChange={(e) => setInvitedSearch(e.target.value)}
+                      placeholder="Search invited guests..."
+                      className={`${inputClass} pl-9`}
+                    />
+                  </div>
+
+                  {/* Invited Guest List */}
+                  <div
+                    className={`rounded-xl border border-slate-200 bg-slate-50 p-2 ${
+                      invitedGuests.length > 3 ? 'max-h-64 overflow-y-auto' : ''
+                    }`}
+                  >
+                    {filteredInvitedGuests.length > 0 ? (
+                      <div className="space-y-1">
+                        {filteredInvitedGuests.map((guest) => (
+                          <div
+                            key={guest.id}
+                            className="flex items-center justify-between gap-2 rounded-lg bg-white px-3 py-2.5 shadow-sm"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold text-slate-800">
+                                {guest.firstName} {guest.lastName}
+                              </p>
+
+                              <p className="truncate text-[10px] text-slate-400">{guest.email}</p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => removeGuest(guest.id)}
+                              aria-label={`Remove ${guest.firstName} ${guest.lastName}`}
+                              className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+                            >
+                              <X size={15} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex min-h-24 items-center justify-center px-3 text-center">
+                        <p className="text-xs text-slate-400">
+                          {invitedGuests.length === 0
+                            ? 'No guests invited yet.'
+                            : 'No invited guests match your search.'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className={labelClass}>Maximum Guest Capacity</label>
-                <input type="number" min="1" placeholder="e.g. 50" className={inputClass} />
-              </div>
+              {/* Guest Capacity and Admission Price */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={labelClass}>Maximum Guest Capacity</label>
 
-              {/* Admission Price */}
-              <div>
-                <label className={labelClass}>Admission Price</label>
-                <input type="number" min="1" placeholder="e.g. 50" className={inputClass} />
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    placeholder="e.g. 50"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelClass}>Admission Price</label>
+
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    placeholder="0 for free events"
+                    className={inputClass}
+                  />
+                </div>
               </div>
             </div>
           )}
 
           {/* Settings Tab */}
           {activeTab === 'settings' && (
-            <div className="h-[498px] space-y-5 p-6">
+            <div className="h-[522px] space-y-5 p-6">
               <div>
                 <h3 className="text-sm font-bold text-slate-800">Event Settings</h3>
                 <p className="mt-1 text-xs text-slate-500">Configure your event preferences.</p>
@@ -373,7 +754,7 @@ export default function CreateEvent({ initialEvent, onSave, onCancel }: CreateEd
                   <p className="text-sm font-semibold text-slate-800">Public Event</p>
                   <p className="text-xs text-slate-500">Allow anyone to discover this event.</p>
                 </div>
-                <input type="checkbox" className="h-4 w-4 accent-indigo-600" />
+                <input type="checkbox" defaultChecked className="h-4 w-4 accent-indigo-600" />
               </label>
 
               <label className="flex items-center justify-between rounded-lg border border-slate-200 p-4">
@@ -410,8 +791,18 @@ export default function CreateEvent({ initialEvent, onSave, onCancel }: CreateEd
               {activeTab !== 'settings' ? (
                 <button
                   type="button"
-                  onClick={() => setActiveTab(activeTab === 'details' ? 'guests' : 'settings')}
-                  className="rounded-lg bg-indigo-600 px-6 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                  onClick={(e) => {
+                    e.preventDefault()
+
+                    if (activeTab === 'details' || activeTab === 'guests') {
+                      const isValid = formRef.current?.reportValidity()
+
+                      if (!isValid) return
+                    }
+
+                    setActiveTab(activeTab === 'details' ? 'guests' : 'settings')
+                  }}
+                  className="rounded-lg bg-indigo-600 px-6 py-3 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
                 >
                   Continue
                 </button>
