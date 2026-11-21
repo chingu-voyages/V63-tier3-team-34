@@ -15,6 +15,12 @@ eventsRouter.post('/', async (req, res) => {
   res.status(201).json(event)
 })
 
+eventsRouter.post('/', async (req, res) => {
+  const input = createEventSchema.parse(req.body)
+  const event = await eventsService.createEvent(input)
+  res.status(201).json(event)
+})
+
 eventsRouter.get('/share/:shareToken', async (req, res) => {
   const { shareToken } = shareTokenParamsSchema.parse(req.params)
   const event = await eventsService.getEventByShareToken(shareToken)
