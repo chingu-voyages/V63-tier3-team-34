@@ -43,6 +43,58 @@ const location = nullableText('location')
 const startsAt = dateTime('startsAt')
 const endsAt = z.preprocess(emptyToNull, dateTime('endsAt').nullable())
 
+const eventType = z
+  .string({ error: message('eventType', 'eventType must be a string') })
+  .trim()
+  .max(50, { error: 'eventType must be at most 50 characters' })
+  .transform((value) => value || null)
+  .nullable()
+
+// A link only: the server does not store image files. localhost is allowed for development.
+const imageUrlError = { error: 'imageUrl must be an http or https URL' }
+const imageUrl = z.preprocess(
+  emptyToNull,
+  z
+    .url({ protocol: /^https?$/, ...imageUrlError })
+    .max(2048, { error: 'imageUrl must be at most 2048 characters' })
+    .nullable(),
+)
+
+const guestEmail = z
+  .string({ error: 'guestEmails must be an array of email addresses' })
+  .trim()
+  .toLowerCase()
+  .pipe(z.email({ error: (issue) => `guestEmails: "${issue.input}" is not a valid email address` }))
+
+/** Trimmed, lower-cased and de-duplicated. On update the whole list is replaced. */
+const guestEmails = z
+  .array(guestEmail, { error: 'guestEmails must be an array of email addresses' })
+  .transform((emails) => [...new Set(emails)])
+
+// Upper bounds match the columns (integer, numeric(10, 2)) so an oversized value is a 400
+// rather than a database error.
+const maxGuestsError = { error: 'maxGuests must be a whole number of at least 1' }
+const maxGuests = z.preprocess(
+  emptyToNull,
+  z.int32(maxGuestsError).min(1, maxGuestsError).nullable(),
+)
+
+const admissionPriceError = {
+  error: 'admissionPrice must be a number of at least 0 with at most 2 decimal places',
+}
+const admissionPrice = z.preprocess(
+  emptyToNull,
+  z
+    .number(admissionPriceError)
+    .min(0, admissionPriceError)
+    .max(99_999_999.99, admissionPriceError)
+    .multipleOf(0.01, admissionPriceError)
+    .nullable(),
+)
+
+const isPublic = z.boolean({ error: 'isPublic must be true or false' })
+const rsvpEnabled = z.boolean({ error: 'rsvpEnabled must be true or false' })
+
 export const eventIdParamsSchema = z.object({
   id: z.uuid({ error: 'id must be a valid UUID' }),
 })
@@ -51,7 +103,8 @@ export const shareTokenParamsSchema = z.object({
   shareToken: z.string().min(1),
 })
 
-// Unknown keys (id, shareToken, timestamps) are stripped, so a client cannot set them.
+// Unknown keys (id, shareToken, timestamps) are stripped, so a client cannot set them. Fields
+// left out of a create fall back to the column defaults in db/schema.ts.
 export const createEventSchema = z
   .object(
     {
@@ -60,6 +113,13 @@ export const createEventSchema = z
       endsAt: endsAt.optional(),
       description: description.optional(),
       location: location.optional(),
+      eventType: eventType.optional(),
+      imageUrl: imageUrl.optional(),
+      guestEmails: guestEmails.optional(),
+      maxGuests: maxGuests.optional(),
+      admissionPrice: admissionPrice.optional(),
+      isPublic: isPublic.optional(),
+      rsvpEnabled: rsvpEnabled.optional(),
     },
     bodyError,
   )
@@ -68,17 +128,32 @@ export const createEventSchema = z
     path: ['endsAt'],
   })
 
+const updatableFields = {
+  title,
+  startsAt,
+  endsAt,
+  description,
+  location,
+  eventType,
+  imageUrl,
+  guestEmails,
+  maxGuests,
+  admissionPrice,
+  isPublic,
+  rsvpEnabled,
+}
+
 /**
- * Partial update: a key left out is not touched. `description`, `location` and `endsAt` can be
- * cleared with null; `title` and `startsAt` are required columns, so they can be changed but
- * not cleared. The endsAt/startsAt order is checked in the service, where the stored values
- * are known.
+ * Partial update: a key left out is not touched. Nullable fields can be cleared with null;
+ * `title`, `startsAt`, `guestEmails` and the two booleans are required columns, so they can be
+ * changed but not set to null. The endsAt/startsAt order is checked in the service, where the
+ * stored values are known.
  */
 export const updateEventSchema = z
-  .object({ title, startsAt, endsAt, description, location }, bodyError)
+  .object(updatableFields, bodyError)
   .partial()
   .refine((event) => Object.keys(event).length > 0, {
-    error: 'at least one of title, description, location, startsAt, endsAt is required',
+    error: `at least one of ${Object.keys(updatableFields).join(', ')} is required`,
   })
 
 export type CreateEventInput = z.infer<typeof createEventSchema>

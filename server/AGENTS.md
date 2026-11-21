@@ -28,6 +28,8 @@ Things that do **not** exist:
 - No endpoint lists all events. `GET /api/events` returns `404`.
 - No `PUT`. Updates use `PATCH`.
 - No pagination, search, filtering or sorting.
+- No image upload. An event stores a link to an image (`imageUrl`), not the image file.
+- No invitation emails and no RSVP endpoints. `guestEmails`, `isPublic` and `rsvpEnabled` are only stored and returned; the server does nothing else with them yet.
 
 ## The event object
 
@@ -42,22 +44,36 @@ Every endpoint that returns an event returns this shape:
   "location": "Zoom",
   "startsAt": "2026-12-01T18:00:00.000Z",
   "endsAt": "2026-12-01T19:30:00.000Z",
+  "eventType": "Team Building",
+  "imageUrl": "https://images.example.com/kickoff.png",
+  "guestEmails": ["ada@example.com", "grace@example.com"],
+  "maxGuests": 50,
+  "admissionPrice": 19.99,
+  "isPublic": false,
+  "rsvpEnabled": true,
   "createdAt": "2026-11-20T07:08:57.482Z",
   "updatedAt": "2026-11-20T07:08:57.482Z"
 }
 ```
 
-| Field         | Type             | Notes                                                                 |
-| ------------- | ---------------- | --------------------------------------------------------------------- |
-| `id`          | string (UUID)    | Set by the server. Used in the URL to get, update or delete the event |
-| `shareToken`  | string           | Set by the server. 22 URL-safe characters, for shareable links        |
-| `title`       | string           | Never empty                                                           |
-| `description` | string or `null` |                                                                       |
-| `location`    | string or `null` |                                                                       |
-| `startsAt`    | string           | ISO 8601 date-time in UTC                                             |
-| `endsAt`      | string or `null` | ISO 8601 date-time in UTC                                             |
-| `createdAt`   | string           | ISO 8601 date-time in UTC. Set by the server                          |
-| `updatedAt`   | string           | ISO 8601 date-time in UTC. Changes on every successful update         |
+| Field            | Type             | Notes                                                                            |
+| ---------------- | ---------------- | -------------------------------------------------------------------------------- |
+| `id`             | string (UUID)    | Set by the server. Used in the URL to get, update or delete the event            |
+| `shareToken`     | string           | Set by the server. 22 URL-safe characters, for shareable links                   |
+| `title`          | string           | Never empty                                                                      |
+| `description`    | string or `null` |                                                                                  |
+| `location`       | string or `null` |                                                                                  |
+| `startsAt`       | string           | ISO 8601 date-time in UTC                                                        |
+| `endsAt`         | string or `null` | ISO 8601 date-time in UTC                                                        |
+| `eventType`      | string or `null` | Free text, e.g. `"Team Building"`. The server does not restrict the values       |
+| `imageUrl`       | string or `null` | Link to an image hosted somewhere else                                           |
+| `guestEmails`    | array of strings | Invited email addresses, lower-cased, no duplicates. `[]` when nobody is invited |
+| `maxGuests`      | number or `null` | Whole number, 1 or more. `null` means no limit                                   |
+| `admissionPrice` | number or `null` | 0 or more, at most 2 decimal places. No currency is stored. `null` means not set |
+| `isPublic`       | boolean          | `false` unless set                                                               |
+| `rsvpEnabled`    | boolean          | `true` unless set                                                                |
+| `createdAt`      | string           | ISO 8601 date-time in UTC. Set by the server                                     |
+| `updatedAt`      | string           | ISO 8601 date-time in UTC. Changes on every successful update                    |
 
 TypeScript types for the client:
 
@@ -70,6 +86,13 @@ export interface Event {
   location: string | null
   startsAt: string // ISO 8601, e.g. "2026-12-01T18:00:00.000Z"
   endsAt: string | null
+  eventType: string | null
+  imageUrl: string | null
+  guestEmails: string[]
+  maxGuests: number | null
+  admissionPrice: number | null
+  isPublic: boolean
+  rsvpEnabled: boolean
   createdAt: string
   updatedAt: string
 }
@@ -80,6 +103,13 @@ export interface CreateEventInput {
   endsAt?: string | null
   description?: string | null
   location?: string | null
+  eventType?: string | null
+  imageUrl?: string | null
+  guestEmails?: string[]
+  maxGuests?: number | null
+  admissionPrice?: number | null
+  isPublic?: boolean
+  rsvpEnabled?: boolean
 }
 
 // Send only the fields you want to change.
@@ -89,6 +119,13 @@ export interface UpdateEventInput {
   endsAt?: string | null
   description?: string | null
   location?: string | null
+  eventType?: string | null
+  imageUrl?: string | null
+  guestEmails?: string[]
+  maxGuests?: number | null
+  admissionPrice?: number | null
+  isPublic?: boolean
+  rsvpEnabled?: boolean
 }
 
 export interface ApiError {
@@ -103,9 +140,16 @@ These apply to both `POST` and `PATCH`.
 
 - **Dates** (`startsAt`, `endsAt`) must be ISO 8601 date-times that include seconds and a timezone: `2026-12-01T18:00:00Z` or `2026-12-01T13:00:00-05:00`. In JavaScript, `new Date(value).toISOString()` always produces a valid value. These are rejected: `2026-12-01` (no time), `2026-12-01T18:00:00` (no timezone), `2026-12-01T18:00Z` (no seconds), and numbers.
 - **`endsAt` cannot be earlier than `startsAt`.**
-- **Text** (`title`, `description`, `location`) is trimmed of leading and trailing spaces.
+- **Text** (`title`, `description`, `location`, `eventType`) is trimmed of leading and trailing spaces.
 - **`title`** cannot be empty or only spaces.
-- **`description`, `location`, `endsAt`** are optional. `null` and `""` both mean "no value" and are stored as `null`.
+- **`eventType`** is free text of at most 50 characters. The server does not check it against a list.
+- **`imageUrl`** must be a full `http://` or `https://` link of at most 2048 characters. The server does not accept image files. A `blob:` URL from `URL.createObjectURL` or a `data:` URL is rejected: upload the image to a host first, then send the link it gives you.
+- **`guestEmails`** must be an array of email addresses, for example `["ada@example.com"]`, not one comma-separated string. Addresses are trimmed, lower-cased and de-duplicated. On update, the array you send replaces the whole list; send `[]` to remove everyone.
+- **`maxGuests`** must be a JSON number: a whole number of 1 or more. The string `"50"` is rejected, so convert form values with `Number(value)`.
+- **`admissionPrice`** must be a JSON number of 0 or more with at most 2 decimal places, such as `19.99`. The string `"19.99"` is rejected.
+- **`isPublic`, `rsvpEnabled`** must be `true` or `false`. The strings `"true"` and `"false"` are rejected.
+- **Optional fields with no value:** for `description`, `location`, `endsAt`, `eventType`, `imageUrl`, `maxGuests` and `admissionPrice`, `null` and `""` both mean "no value" and are stored as `null`.
+- **Defaults on create:** a field you leave out is stored as `null`, except `guestEmails` (`[]`), `isPublic` (`false`) and `rsvpEnabled` (`true`).
 - **Unknown fields are ignored.** You cannot set `id`, `shareToken`, `createdAt` or `updatedAt`; sending them has no effect.
 
 ## Errors
@@ -126,9 +170,16 @@ Validation messages you can get in `details`:
 - `startsAt is required`
 - `startsAt must be an ISO 8601 date-time with a timezone, e.g. 2026-12-01T18:00:00Z` (same for `endsAt`)
 - `endsAt must be after startsAt`
-- `description must be a string`, `location must be a string`
+- `description must be a string`, `location must be a string`, `eventType must be a string`
+- `eventType must be at most 50 characters`
+- `imageUrl must be an http or https URL`, `imageUrl must be at most 2048 characters`
+- `guestEmails must be an array of email addresses`
+- `guestEmails: "not-an-email" is not a valid email address`
+- `maxGuests must be a whole number of at least 1`
+- `admissionPrice must be a number of at least 0 with at most 2 decimal places`
+- `isPublic must be true or false`, `rsvpEnabled must be true or false`
 - `id must be a valid UUID`
-- `at least one of title, description, location, startsAt, endsAt is required` (`PATCH` only)
+- `at least one of title, startsAt, endsAt, description, location, eventType, imageUrl, guestEmails, maxGuests, admissionPrice, isPublic, rsvpEnabled is required` (`PATCH` only)
 - `Request body must be a JSON object`
 
 ## Endpoint details
@@ -161,13 +212,20 @@ Creates an event.
 
 Request body:
 
-| Field         | Required | Type                    |
-| ------------- | -------- | ----------------------- |
-| `title`       | yes      | string                  |
-| `startsAt`    | yes      | ISO date-time           |
-| `endsAt`      | no       | ISO date-time or `null` |
-| `description` | no       | string or `null`        |
-| `location`    | no       | string or `null`        |
+| Field            | Required | Type                        | If left out |
+| ---------------- | -------- | --------------------------- | ----------- |
+| `title`          | yes      | string                      |             |
+| `startsAt`       | yes      | ISO date-time               |             |
+| `endsAt`         | no       | ISO date-time or `null`     | `null`      |
+| `description`    | no       | string or `null`            | `null`      |
+| `location`       | no       | string or `null`            | `null`      |
+| `eventType`      | no       | string or `null`            | `null`      |
+| `imageUrl`       | no       | http(s) URL or `null`       | `null`      |
+| `guestEmails`    | no       | array of email strings      | `[]`        |
+| `maxGuests`      | no       | whole number ≥ 1, or `null` | `null`      |
+| `admissionPrice` | no       | number ≥ 0, or `null`       | `null`      |
+| `isPublic`       | no       | boolean                     | `false`     |
+| `rsvpEnabled`    | no       | boolean                     | `true`      |
 
 Example request:
 
@@ -180,8 +238,21 @@ Content-Type: application/json
   "description": "Sprint 1 planning",
   "location": "Zoom",
   "startsAt": "2026-12-01T18:00:00Z",
-  "endsAt": "2026-12-01T19:30:00Z"
+  "endsAt": "2026-12-01T19:30:00Z",
+  "eventType": "Team Building",
+  "imageUrl": "https://images.example.com/kickoff.png",
+  "guestEmails": ["ada@example.com", "grace@example.com"],
+  "maxGuests": 50,
+  "admissionPrice": 19.99,
+  "isPublic": false,
+  "rsvpEnabled": true
 }
+```
+
+Only `title` and `startsAt` are needed; this is also a valid request:
+
+```json
+{ "title": "Standup", "startsAt": "2026-12-02T09:00:00Z" }
 ```
 
 Response `201`: the created event object, including the new `id` and `shareToken`.
@@ -225,9 +296,10 @@ Errors: `404` if no event has that share token.
 Changes some fields of an event. Send only the fields you want to change; anything you leave out keeps its current value.
 
 - `:id` must be a UUID.
-- The body must contain at least one of `title`, `description`, `location`, `startsAt`, `endsAt`.
-- `description`, `location` and `endsAt` can be cleared by sending `null`.
-- `title` and `startsAt` can be changed but not cleared.
+- The body must contain at least one field from the create table above.
+- `description`, `location`, `endsAt`, `eventType`, `imageUrl`, `maxGuests` and `admissionPrice` can be cleared by sending `null`.
+- `title`, `startsAt`, `isPublic` and `rsvpEnabled` can be changed but not set to `null`.
+- `guestEmails` replaces the whole list. To add one guest, send the existing list plus the new address; to remove everyone, send `[]`.
 - If you send only one of the two dates, it is checked against the other one already stored. For example, moving `startsAt` to after the stored `endsAt` is rejected; send both dates together to move the whole event.
 
 Example request, renaming an event and removing its location:
@@ -290,12 +362,41 @@ export const updateEvent = (id: string, input: UpdateEventInput) =>
 export const deleteEvent = (id: string) => api<void>(`/events/${id}`, { method: 'DELETE' })
 ```
 
-Turning a date and a time from form inputs into a valid `startsAt`:
+Form inputs give you strings, so convert them before sending:
 
 ```ts
 // date = "2026-12-01" from <input type="date">, time = "18:00" from <input type="time">
 const startsAt = new Date(`${date}T${time}`).toISOString()
+
+// "ada@example.com, grace@example.com" from a textarea
+const guestEmails = guestText
+  .split(',')
+  .map((email) => email.trim())
+  .filter(Boolean)
+
+// "" or "50" from <input type="number">
+const maxGuests = capacityText === '' ? null : Number(capacityText)
+const admissionPrice = priceText === '' ? null : Number(priceText)
+
+// <input type="checkbox">
+const isPublic = publicCheckbox.checked
 ```
+
+How the create-event form maps to the API:
+
+| Form field             | API field                         |
+| ---------------------- | --------------------------------- |
+| Event Title            | `title`                           |
+| Description            | `description`                     |
+| Date + Time            | `startsAt` (combined, see above)  |
+| Location               | `location`                        |
+| Event Type             | `eventType`                       |
+| Image                  | `imageUrl` (a link, not the file) |
+| Invite Guests          | `guestEmails`                     |
+| Maximum Guest Capacity | `maxGuests`                       |
+| Admission Price        | `admissionPrice`                  |
+| Public Event           | `isPublic`                        |
+| Guest Registration     | `rsvpEnabled`                     |
 
 ## Keeping this file up to date
 
