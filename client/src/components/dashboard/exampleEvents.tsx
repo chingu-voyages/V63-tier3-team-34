@@ -11,6 +11,15 @@ interface Event {
   location: string
   status: EventStatus
   image: string
+  attendees?: Attendee[]
+}
+
+export interface Attendee {
+  id: number
+  firstName: string
+  lastName: string
+  email: string
+  status: 'Accepted' | 'Pending' | 'Declined'
 }
 
 export const exampleEvents: Event[] = [
@@ -37,6 +46,43 @@ export const exampleEvents: Event[] = [
     location: 'Grand Ballroom',
     status: 'Upcoming',
     image: 'https://images.unsplash.com/photo-1519167758481-83f550bb49b3?w=600',
+    attendees: [
+      {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Smith',
+        email: 'john.smith@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 2,
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        email: 'sarah.johnson@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 3,
+        firstName: 'Michael',
+        lastName: 'Brown',
+        email: 'michael.brown@example.com',
+        status: 'Pending',
+      },
+      {
+        id: 4,
+        firstName: 'Emily',
+        lastName: 'Davis',
+        email: 'emily.davis@example.com',
+        status: 'Declined',
+      },
+      {
+        id: 5,
+        firstName: 'David',
+        lastName: 'Wilson',
+        email: 'david.wilson@example.com',
+        status: 'Accepted',
+      },
+    ],
   },
   {
     id: 3,
@@ -49,6 +95,43 @@ export const exampleEvents: Event[] = [
     location: 'Tech Hub',
     status: 'Ongoing',
     image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600',
+    attendees: [
+      {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Smith',
+        email: 'john.smith@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 2,
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        email: 'sarah.johnson@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 3,
+        firstName: 'Michael',
+        lastName: 'Brown',
+        email: 'michael.brown@example.com',
+        status: 'Pending',
+      },
+      {
+        id: 4,
+        firstName: 'Emily',
+        lastName: 'Davis',
+        email: 'emily.davis@example.com',
+        status: 'Declined',
+      },
+      {
+        id: 5,
+        firstName: 'David',
+        lastName: 'Wilson',
+        email: 'david.wilson@example.com',
+        status: 'Accepted',
+      },
+    ],
   },
   {
     id: 4,
@@ -85,6 +168,43 @@ export const exampleEvents: Event[] = [
     location: 'City Rooftop',
     status: 'Past',
     image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=600',
+    attendees: [
+      {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Smith',
+        email: 'john.smith@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 2,
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        email: 'sarah.johnson@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 3,
+        firstName: 'Michael',
+        lastName: 'Brown',
+        email: 'michael.brown@example.com',
+        status: 'Pending',
+      },
+      {
+        id: 4,
+        firstName: 'Emily',
+        lastName: 'Davis',
+        email: 'emily.davis@example.com',
+        status: 'Declined',
+      },
+      {
+        id: 5,
+        firstName: 'David',
+        lastName: 'Wilson',
+        email: 'david.wilson@example.com',
+        status: 'Accepted',
+      },
+    ],
   },
   {
     id: 7,
@@ -121,6 +241,43 @@ export const exampleEvents: Event[] = [
     location: 'Convention Center',
     status: 'Upcoming',
     image: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=600',
+    attendees: [
+      {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Smith',
+        email: 'john.smith@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 2,
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        email: 'sarah.johnson@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 3,
+        firstName: 'Michael',
+        lastName: 'Brown',
+        email: 'michael.brown@example.com',
+        status: 'Pending',
+      },
+      {
+        id: 4,
+        firstName: 'Emily',
+        lastName: 'Davis',
+        email: 'emily.davis@example.com',
+        status: 'Declined',
+      },
+      {
+        id: 5,
+        firstName: 'David',
+        lastName: 'Wilson',
+        email: 'david.wilson@example.com',
+        status: 'Accepted',
+      },
+    ],
   },
   {
     id: 10,
@@ -145,6 +302,43 @@ export const exampleEvents: Event[] = [
     location: 'Business Convention Center',
     status: 'Past',
     image: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=600',
+    attendees: [
+      {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Smith',
+        email: 'john.smith@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 2,
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        email: 'sarah.johnson@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 3,
+        firstName: 'Michael',
+        lastName: 'Brown',
+        email: 'michael.brown@example.com',
+        status: 'Pending',
+      },
+      {
+        id: 4,
+        firstName: 'Emily',
+        lastName: 'Davis',
+        email: 'emily.davis@example.com',
+        status: 'Declined',
+      },
+      {
+        id: 5,
+        firstName: 'David',
+        lastName: 'Wilson',
+        email: 'david.wilson@example.com',
+        status: 'Accepted',
+      },
+    ],
   },
   {
     id: 12,
@@ -181,6 +375,43 @@ export const exampleEvents: Event[] = [
     location: 'The Garden Restaurant',
     status: 'Upcoming',
     image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=600',
+    attendees: [
+      {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Smith',
+        email: 'john.smith@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 2,
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        email: 'sarah.johnson@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 3,
+        firstName: 'Michael',
+        lastName: 'Brown',
+        email: 'michael.brown@example.com',
+        status: 'Pending',
+      },
+      {
+        id: 4,
+        firstName: 'Emily',
+        lastName: 'Davis',
+        email: 'emily.davis@example.com',
+        status: 'Declined',
+      },
+      {
+        id: 5,
+        firstName: 'David',
+        lastName: 'Wilson',
+        email: 'david.wilson@example.com',
+        status: 'Accepted',
+      },
+    ],
   },
   {
     id: 15,
@@ -241,6 +472,43 @@ export const exampleEvents: Event[] = [
     location: 'Silicon Valley Tech Center',
     status: 'Upcoming',
     image: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=600',
+    attendees: [
+      {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Smith',
+        email: 'john.smith@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 2,
+        firstName: 'Sarah',
+        lastName: 'Johnson',
+        email: 'sarah.johnson@example.com',
+        status: 'Accepted',
+      },
+      {
+        id: 3,
+        firstName: 'Michael',
+        lastName: 'Brown',
+        email: 'michael.brown@example.com',
+        status: 'Pending',
+      },
+      {
+        id: 4,
+        firstName: 'Emily',
+        lastName: 'Davis',
+        email: 'emily.davis@example.com',
+        status: 'Declined',
+      },
+      {
+        id: 5,
+        firstName: 'David',
+        lastName: 'Wilson',
+        email: 'david.wilson@example.com',
+        status: 'Accepted',
+      },
+    ],
   },
   {
     id: 20,
