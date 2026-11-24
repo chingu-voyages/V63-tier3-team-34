@@ -8,6 +8,13 @@
       "when": 1794465283929,
       "tag": "0000_create_events",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795227268837,
+      "tag": "0001_add_event_details",
+      "breakpoints": true
     }
   ]
 }
