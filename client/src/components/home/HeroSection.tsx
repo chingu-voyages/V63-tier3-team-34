@@ -19,10 +19,12 @@ export function HeroSection({
   joined,
   rsvp,
   setModal,
+  signedIn,
 }: {
   joined: string[]
   rsvp: (id: string) => void
   setModal: (modal: string) => void
+  signedIn: boolean
 }) {
   return (
     <section className="grid grid-cols-[1.18fr_1fr] items-center gap-22.5 py-11.5 max-[1150px]:gap-8.75 max-[850px]:grid-cols-2 max-[850px]:gap-6.25 max-[580px]:grid-cols-1 max-[580px]:gap-8 max-[580px]:py-9 mx-auto w-full max-w-7xl px-7 max-[850px]:px-5.5">
@@ -49,9 +51,17 @@ export function HeroSection({
           <Button size="lg" onClick={() => setModal('demo')}>
             <Sparkles /> Try Demo — Guest
           </Button>
-          <Button size="lg" variant="outline" onClick={() => setModal('signin')}>
-            Sign In / Register <ArrowRight />
-          </Button>
+          {signedIn ? (
+            <Button size="lg" variant="outline" asChild>
+              <Link to="/eventdashboard">
+                Go to dashboard <ArrowRight />
+              </Link>
+            </Button>
+          ) : (
+            <Button size="lg" variant="outline" onClick={() => setModal('signin')}>
+              Sign In / Register <ArrowRight />
+            </Button>
+          )}
         </div>
         <p className="mt-4 flex flex-wrap items-center gap-2 text-xs [&_svg]:text-primary [&_i]:size-1 [&_i]:rounded-full [&_i]:bg-border">
           <CircleCheck size={17} /> Takes 30 seconds <i /> No credit card required <i /> Instant

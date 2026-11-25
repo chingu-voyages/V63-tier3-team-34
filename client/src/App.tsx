@@ -12,6 +12,7 @@ import { CallToActionSection } from '@/components/home/CallToActionSection'
 import { Footer } from '@/components/home/Footer'
 import { HomeDialog } from '@/components/home/HomeDialog'
 import EventDashboard from '@/components/dashboard/EventDashboard'
+import { useAuth } from '@/lib/auth'
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function AppContent() {
   const [modal, setModal] = useState<string | null>(null)
   const [city, setCity] = useState('Miami')
   const [joined, setJoined] = useState<string[]>([])
+  const { user, logout } = useAuth()
   const rsvp = (id: string) =>
     setJoined((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
@@ -43,14 +45,20 @@ function AppContent() {
       className="min-h-screen bg-background text-foreground [&_h1]:font-bold [&_h1]:tracking-tight text-[15px] leading-[1.55] [&_h2]:text-[clamp(26px,2.3vw,36px)] [&_h2]:font-bold [&_h2]:leading-tight [&_h2]:tracking-[-0.9px] [&_h3]:text-[25px] [&_h3]:font-bold [&_h3]:leading-[1.3] [&_h3]:tracking-[-0.5px] [&_p]:text-muted-foreground"
       id="top"
     >
-      <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} setModal={setModal} />
+      <Header
+        menuOpen={menuOpen}
+        setMenuOpen={setMenuOpen}
+        setModal={setModal}
+        user={user}
+        onLogout={logout}
+      />
       <main>
         <Routes>
           <Route
             path="/"
             element={
               <>
-                <HeroSection joined={joined} rsvp={rsvp} setModal={setModal} />
+                <HeroSection joined={joined} rsvp={rsvp} setModal={setModal} signedIn={!!user} />
                 <StatsSection />
                 <EventsSection city={city} joined={joined} rsvp={rsvp} setModal={setModal} />
                 <HowItWorksSection />

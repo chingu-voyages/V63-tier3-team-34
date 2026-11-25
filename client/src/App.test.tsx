@@ -1,11 +1,37 @@
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+
+const ada = {
+  id: '0b9d3f0e-6c1f-4f65-9d0f-3f1f0a3c8a11',
+  email: 'ada@example.com',
+  firstName: 'Ada',
+  lastName: 'Lovelace',
+  avatarUrl: 'https://avatars.example.com/ada.png',
+  createdAt: '2026-11-25T07:08:57.482Z',
+}
+
+/** Stands in for the server: answers /api/auth/me with `user` and accepts a logout. */
+function stubServer(user: typeof ada | null) {
+  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+    if (url === '/api/auth/me') return Response.json({ user })
+    if (url === '/api/auth/logout' && init?.method === 'POST') {
+      return new Response(null, { status: 204 })
+    }
+    return new Response(null, { status: 404 })
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
 
 describe('App', () => {
   beforeEach(() => {
     window.history.replaceState({}, '', '/')
     vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    stubServer(null)
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
   it('renders the events dashboard', () => {
     window.history.replaceState({}, '', '/eventdashboard')
@@ -46,6 +72,69 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Continue with GitHub' }).getAttribute('href')).toBe(
       '/api/auth/github?returnTo=%2Fevents%2Fai%3Fref%3Dshare%23details',
     )
+  })
+
+  it('shows who is signed in instead of the sign-in buttons', async () => {
+    stubServer(ada)
+    render(<App />)
+    expect(await screen.findByRole('img', { name: 'Signed in as Ada Lovelace' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Sign In' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sign in to your account' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Sign In \/ Register/ })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Go to dashboard' }).getAttribute('href')).toBe(
+      '/eventdashboard',
+    )
+  })
+
+  it('logs out and goes back to the sign-in buttons', async () => {
+    const fetchMock = stubServer(ada)
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Log out' }))
+    expect(await screen.findByRole('button', { name: 'Sign In' })).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' })
+    expect(screen.queryByRole('img', { name: /Signed in as/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /Sign In \/ Register/ })).toBeTruthy()
+  })
+
+  it('offers Log out in the mobile navigation', async () => {
+    stubServer(ada)
+    render(<App />)
+    await screen.findByRole('img', { name: 'Signed in as Ada Lovelace' })
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle navigation' }))
+    const navigation = screen.getByRole('dialog', { name: 'EventAI' })
+    fireEvent.click(within(navigation).getByRole('button', { name: 'Log out' }))
+    expect(await screen.findByRole('button', { name: 'Sign In' })).toBeTruthy()
+  })
+
+  it('stays signed in when the logout request fails', async () => {
+    const fetchMock = stubServer(ada)
+    render(<App />)
+    const logout = await screen.findByRole('button', { name: 'Log out' })
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 500 }))
+    fireEvent.click(logout)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeTruthy()
+  })
+
+  it('shows the sign-in buttons when the server cannot be reached', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    render(<App />)
+    const signIn = await screen.findByRole('button', { name: 'Sign In' })
+    await waitFor(() => expect(signIn.className).not.toContain('invisible'))
+  })
+
+  it('hides the sign-in buttons until the server has answered', async () => {
+    let answer!: (response: Response) => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))),
+    )
+    render(<App />)
+    const signIn = screen.getByRole('button', { name: 'Sign In' })
+    expect(signIn.className).toContain('invisible')
+    answer(Response.json({ user: null }))
+    await waitFor(() => expect(signIn.className).not.toContain('invisible'))
   })
 
   it.each(['/', '/events', '/events/ai', '/events/missing', '/missing'])(
