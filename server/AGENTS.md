@@ -8,7 +8,7 @@ If you are an AI assistant reading this: treat it as the complete API. Do not us
 
 - **Base URL:** `/api`. From the React client, always use relative URLs such as `fetch('/api/events')`; the dev server and the production nginx both forward `/api` to this server. Called directly, the server is at `http://localhost:3000/api`.
 - **Format:** request and response bodies are JSON. Send `Content-Type: application/json` on every request that has a body.
-- **Auth:** users log in with GitHub. The server then sets an `HttpOnly` session cookie, which the browser sends back automatically on every `/api` request; client code never reads or stores a token. Only creating an event needs a login. Everything else works for anonymous visitors. See [Logging in](#logging-in).
+- **Auth:** users log in with GitHub. The server then sets an `HttpOnly` session cookie, which the browser sends back automatically on every `/api` request; client code never reads or stores a token. Creating an event needs a login, and only the host of an event (the user who created it) can change or delete it. Reading events works for anonymous visitors. See [Logging in](#logging-in).
 - **CORS:** only the client origin (`http://localhost:5173` in development) may call the server directly from a browser. Relative `/api` URLs avoid the issue.
 
 ## Endpoints at a glance
@@ -23,15 +23,14 @@ If you are an AI assistant reading this: treat it as the complete API. Do not us
 | `POST`   | `/api/events`                   | Create an event (login needed)  | `201` + event  |
 | `GET`    | `/api/events/:id`               | Get one event by its id         | `200` + event  |
 | `GET`    | `/api/events/share/:shareToken` | Get one event by its share code | `200` + event  |
-| `PATCH`  | `/api/events/:id`               | Change some fields of an event  | `200` + event  |
-| `DELETE` | `/api/events/:id`               | Delete an event                 | `204`, no body |
+| `PATCH`  | `/api/events/:id`               | Change an event (host only)     | `200` + event  |
+| `DELETE` | `/api/events/:id`               | Delete an event (host only)     | `204`, no body |
 
 Things that do **not** exist:
 
 - No email/password login, no sign-up form and no "forgot password". An account is created the first time someone logs in with GitHub.
 - No Google login (or any provider other than GitHub) yet.
 - No endpoint to edit or delete a user, and none to list or search users.
-- `PATCH` and `DELETE` on an event do not check who is asking yet: they work without a login and for events of other users.
 - No endpoint lists all events. `GET /api/events` returns `404`.
 - No `PUT`. Updates use `PATCH`.
 - No pagination, search, filtering or sorting.
@@ -113,25 +112,25 @@ Every endpoint that returns an event returns this shape:
 }
 ```
 
-| Field            | Type             | Notes                                                                               |
-| ---------------- | ---------------- | ----------------------------------------------------------------------------------- |
-| `id`             | string (UUID)    | Set by the server. Used in the URL to get, update or delete the event               |
-| `shareToken`     | string           | Set by the server. 22 URL-safe characters, for shareable links                      |
-| `hostId`         | string or `null` | Set by the server: the `id` of the user who created the event. `null` on old events |
-| `title`          | string           | Never empty                                                                         |
-| `description`    | string or `null` |                                                                                     |
-| `location`       | string or `null` |                                                                                     |
-| `startsAt`       | string           | ISO 8601 date-time in UTC                                                           |
-| `endsAt`         | string or `null` | ISO 8601 date-time in UTC                                                           |
-| `eventType`      | string or `null` | Free text, e.g. `"Team Building"`. The server does not restrict the values          |
-| `imageUrl`       | string or `null` | Link to an image hosted somewhere else                                              |
-| `guestEmails`    | array of strings | Invited email addresses, lower-cased, no duplicates. `[]` when nobody is invited    |
-| `maxGuests`      | number or `null` | Whole number, 1 or more. `null` means no limit                                      |
-| `admissionPrice` | number or `null` | 0 or more, at most 2 decimal places. No currency is stored. `null` means not set    |
-| `isPublic`       | boolean          | `false` unless set                                                                  |
-| `rsvpEnabled`    | boolean          | `true` unless set                                                                   |
-| `createdAt`      | string           | ISO 8601 date-time in UTC. Set by the server                                        |
-| `updatedAt`      | string           | ISO 8601 date-time in UTC. Changes on every successful update                       |
+| Field            | Type             | Notes                                                                                                                                         |
+| ---------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`             | string (UUID)    | Set by the server. Used in the URL to get, update or delete the event                                                                         |
+| `shareToken`     | string           | Set by the server. 22 URL-safe characters, for shareable links                                                                                |
+| `hostId`         | string or `null` | Set by the server: the `id` of the user who created the event. `null` on events from before logins existed, which nobody can change or delete |
+| `title`          | string           | Never empty                                                                                                                                   |
+| `description`    | string or `null` |                                                                                                                                               |
+| `location`       | string or `null` |                                                                                                                                               |
+| `startsAt`       | string           | ISO 8601 date-time in UTC                                                                                                                     |
+| `endsAt`         | string or `null` | ISO 8601 date-time in UTC                                                                                                                     |
+| `eventType`      | string or `null` | Free text, e.g. `"Team Building"`. The server does not restrict the values                                                                    |
+| `imageUrl`       | string or `null` | Link to an image hosted somewhere else                                                                                                        |
+| `guestEmails`    | array of strings | Invited email addresses, lower-cased, no duplicates. `[]` when nobody is invited                                                              |
+| `maxGuests`      | number or `null` | Whole number, 1 or more. `null` means no limit                                                                                                |
+| `admissionPrice` | number or `null` | 0 or more, at most 2 decimal places. No currency is stored. `null` means not set                                                              |
+| `isPublic`       | boolean          | `false` unless set                                                                                                                            |
+| `rsvpEnabled`    | boolean          | `true` unless set                                                                                                                             |
+| `createdAt`      | string           | ISO 8601 date-time in UTC. Set by the server                                                                                                  |
+| `updatedAt`      | string           | ISO 8601 date-time in UTC. Changes on every successful update                                                                                 |
 
 TypeScript types for the client:
 
@@ -229,6 +228,7 @@ Every error response is JSON with an `error` string. Validation errors also have
 | `400`  | The body or the id in the URL is invalid                 | `{ "error": "Validation failed", "details": ["...", "..."] }` |
 | `400`  | The body is not valid JSON                               | `{ "error": "<message from the JSON parser>" }`               |
 | `401`  | The endpoint needs a login and there is no valid session | `{ "error": "Authentication required" }`                      |
+| `403`  | The user is logged in but is not the host of the event   | `{ "error": "Only the host of this event can do that" }`      |
 | `404`  | No event has that id or share token                      | `{ "error": "Event not found" }`                              |
 | `404`  | The URL or method is not an endpoint                     | `{ "error": "Route not found: GET /api/whatever" }`           |
 | `500`  | Something broke on the server                            | `{ "error": "Internal server error" }`                        |
@@ -404,7 +404,7 @@ Errors: `404` if no event has that share token.
 
 ### `PATCH /api/events/:id`
 
-Changes some fields of an event. Send only the fields you want to change; anything you leave out keeps its current value.
+Changes some fields of an event. **Host only:** needs a login, and the logged-in user must be the event's host. Send only the fields you want to change; anything you leave out keeps its current value.
 
 - `:id` must be a UUID.
 - The body must contain at least one field from the create table above.
@@ -427,18 +427,18 @@ Content-Type: application/json
 
 Response `200`: the full updated event object. `updatedAt` has a new value; `id`, `shareToken` and `createdAt` never change.
 
-Errors: `400` if `:id` is not a UUID or validation fails, `404` if no event has that id.
+Errors: `401` if nobody is logged in, `400` if `:id` is not a UUID or validation fails, `404` if no event has that id, `403` if the logged-in user is not the host.
 
 ### `DELETE /api/events/:id`
 
-Deletes an event permanently.
+Deletes an event permanently. **Host only:** needs a login, and the logged-in user must be the event's host.
 
 - `:id` must be a UUID.
 - No request body.
 
 Response `204` with an **empty body**. Do not call `response.json()` on it.
 
-Errors: `400` if `:id` is not a UUID, `404` if no event has that id (including one that was already deleted).
+Errors: `401` if nobody is logged in, `400` if `:id` is not a UUID, `404` if no event has that id (including one that was already deleted), `403` if the logged-in user is not the host.
 
 ## Example client code
 

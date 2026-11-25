@@ -21,8 +21,24 @@ export async function getEventByShareToken(shareToken: string): Promise<Event> {
   return event
 }
 
-export async function updateEvent(id: string, input: UpdateEventInput): Promise<Event> {
-  const existing = await getEventById(id)
+/**
+ * The event, for a request that only its host may make. Events created before logins existed
+ * have no host, so nobody passes this check for them.
+ */
+export async function getEventForHost(id: string, userId: string): Promise<Event> {
+  const event = await getEventById(id)
+  if (event.hostId !== userId) {
+    throw new HttpError(403, 'Only the host of this event can do that')
+  }
+  return event
+}
+
+export async function updateEvent(
+  id: string,
+  input: UpdateEventInput,
+  userId: string,
+): Promise<Event> {
+  const existing = await getEventForHost(id, userId)
 
   // The update may carry only one of the two dates, so compare against what is stored.
   const startsAt = input.startsAt ?? existing.startsAt
@@ -37,7 +53,8 @@ export async function updateEvent(id: string, input: UpdateEventInput): Promise<
   return event
 }
 
-export async function deleteEvent(id: string): Promise<void> {
+export async function deleteEvent(id: string, userId: string): Promise<void> {
+  await getEventForHost(id, userId)
   const deleted = await eventsRepo.deleteEvent(id)
   if (!deleted) throw eventNotFound()
 }

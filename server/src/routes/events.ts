@@ -28,15 +28,15 @@ eventsRouter.get('/:id', async (req, res) => {
   res.json(event)
 })
 
-eventsRouter.patch('/:id', async (req, res) => {
+eventsRouter.patch('/:id', requireAuth, async (req, res) => {
   const { id } = eventIdParamsSchema.parse(req.params)
   const input = updateEventSchema.parse(req.body)
-  const event = await eventsService.updateEvent(id, input)
+  const event = await eventsService.updateEvent(id, input, req.user!.id)
   res.json(event)
 })
 
-eventsRouter.delete('/:id', async (req, res) => {
+eventsRouter.delete('/:id', requireAuth, async (req, res) => {
   const { id } = eventIdParamsSchema.parse(req.params)
-  await eventsService.deleteEvent(id)
+  await eventsService.deleteEvent(id, req.user!.id)
   res.status(204).end()
 })
