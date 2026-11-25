@@ -1,5 +1,4 @@
-import { ArrowRight } from 'lucide-react'
-import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Dialog,
   DialogContent,
@@ -7,11 +6,10 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { featuredEvent } from '@/data/events'
 import { Check, MapPin, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { GitHubIcon } from './GitHubIcon'
 
 export function HomeDialog({
   modal,
@@ -28,15 +26,14 @@ export function HomeDialog({
   joined: string[]
   rsvp: (id: string) => void
 }) {
-  const [emailSent, setEmailSent] = useState(false)
+  // Login is a full-page trip to the server and GitHub; returnTo brings the browser back here.
+  const { pathname, search, hash } = useLocation()
+  const githubLoginUrl = `/api/auth/github?returnTo=${encodeURIComponent(pathname + search + hash)}`
   return (
     <Dialog
       open={modal !== null}
       onOpenChange={(open) => {
-        if (!open) {
-          setModal(null)
-          setEmailSent(false)
-        }
+        if (!open) setModal(null)
       }}
     >
       <DialogContent className="rounded-[18px] p-7.5 sm:max-w-115">
@@ -57,7 +54,7 @@ export function HomeDialog({
             {modal === 'demo'
               ? 'Try a local preview of our frictionless RSVP. No account or credit card needed.'
               : modal === 'signin'
-                ? 'Enter your email to preview the sign-in experience.'
+                ? 'Sign in with your GitHub account to create and manage your events.'
                 : modal === 'location'
                   ? 'Choose a nearby city to explore this event browsing preview.'
                   : `${modal} information will be available when EventAI launches. This homepage is a preview.`}
@@ -79,20 +76,12 @@ export function HomeDialog({
           </div>
         )}
         {modal === 'signin' && (
-          <form
-            className="flex flex-col gap-4 [&_p]:text-sm"
-            onSubmit={(event) => {
-              event.preventDefault()
-              setEmailSent(true)
-            }}
-          >
-            <Label htmlFor="email">Email address</Label>
-            <Input id="email" type="email" placeholder="you@example.com" required />
-            <Button type="submit">
-              Continue with email <ArrowRight />
-            </Button>
-            {emailSent && <p role="status">Thanks! Email sign-in will be available at launch.</p>}
-          </form>
+          <Button asChild className="bg-[#24292f] text-white hover:bg-[#32383f] hover:text-white">
+            <a href={githubLoginUrl}>
+              <GitHubIcon className="size-5" />
+              Continue with GitHub
+            </a>
+          </Button>
         )}
         {modal === 'location' && (
           <div className="flex flex-col gap-3">

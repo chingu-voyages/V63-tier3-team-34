@@ -28,17 +28,24 @@ describe('App', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
-  it('submits the sign-in preview and closes the dialog', async () => {
+  it('offers GitHub sign-in from the header and closes the dialog', async () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
     const dialog = screen.getByRole('dialog', { name: 'Welcome to EventAI' })
-    fireEvent.change(within(dialog).getByLabelText('Email address'), {
-      target: { value: 'guest@example.com' },
-    })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Continue with email' }))
-    expect(within(dialog).getByRole('status').textContent).toContain('available at launch')
+    expect(
+      within(dialog).getByRole('link', { name: 'Continue with GitHub' }).getAttribute('href'),
+    ).toBe('/api/auth/github?returnTo=%2F')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('sends the user back to the page they signed in from', () => {
+    window.history.replaceState({}, '', '/events/ai?ref=share#details')
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
+    expect(screen.getByRole('link', { name: 'Continue with GitHub' }).getAttribute('href')).toBe(
+      '/api/auth/github?returnTo=%2Fevents%2Fai%3Fref%3Dshare%23details',
+    )
   })
 
   it.each(['/', '/events', '/events/ai', '/events/missing', '/missing'])(
