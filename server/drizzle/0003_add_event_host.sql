@@ -1,0 +1,2 @@
+ALTER TABLE "events" ADD COLUMN "host_id" uuid;--> statement-breakpoint
+ALTER TABLE "events" ADD CONSTRAINT "events_host_id_users_id_fk" FOREIGN KEY ("host_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;

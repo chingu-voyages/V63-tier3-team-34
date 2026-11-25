@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { requireAuth } from '../middleware/require-auth.js'
 import {
   createEventSchema,
   eventIdParamsSchema,
@@ -9,15 +10,9 @@ import * as eventsService from '../services/events-service.js'
 
 export const eventsRouter = Router()
 
-eventsRouter.post('/', async (req, res) => {
+eventsRouter.post('/', requireAuth, async (req, res) => {
   const input = createEventSchema.parse(req.body)
-  const event = await eventsService.createEvent(input)
-  res.status(201).json(event)
-})
-
-eventsRouter.post('/', async (req, res) => {
-  const input = createEventSchema.parse(req.body)
-  const event = await eventsService.createEvent(input)
+  const event = await eventsService.createEvent(input, req.user!.id)
   res.status(201).json(event)
 })
 
