@@ -9,14 +9,21 @@ vi.mock('../db/invitations-repo.js', () => ({
   createInvitations: vi.fn(),
   findInvitationsByEventId: vi.fn(),
   deleteInvitation: vi.fn(),
+  findInvitationByToken: vi.fn(),
+  answerInvitationByToken: vi.fn(),
 }))
 vi.mock('../db/sessions-repo.js', () => ({
   findUserBySessionId: vi.fn(),
 }))
 
 const { findEventById } = await import('../db/events-repo.js')
-const { createInvitations, findInvitationsByEventId, deleteInvitation } =
-  await import('../db/invitations-repo.js')
+const {
+  createInvitations,
+  findInvitationsByEventId,
+  deleteInvitation,
+  findInvitationByToken,
+  answerInvitationByToken,
+} = await import('../db/invitations-repo.js')
 const { findUserBySessionId } = await import('../db/sessions-repo.js')
 const { app } = await import('../app.js')
 
@@ -77,6 +84,8 @@ beforeEach(() => {
   vi.mocked(createInvitations).mockReset().mockResolvedValue([])
   vi.mocked(findInvitationsByEventId).mockReset()
   vi.mocked(deleteInvitation).mockReset()
+  vi.mocked(findInvitationByToken).mockReset()
+  vi.mocked(answerInvitationByToken).mockReset()
   // Any request that carries a session cookie is treated as the host being logged in.
   vi.mocked(findUserBySessionId).mockReset().mockResolvedValue(host)
 })
@@ -308,5 +317,152 @@ describe('DELETE /api/events/:id/invitations/:invitationId', () => {
     expect(res.status).toBe(400)
     expect(res.body.details).toEqual(['invitationId must be a valid UUID'])
     expect(deleteInvitation).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/invitations/:token', () => {
+  it('returns the invitation and its event without a login', async () => {
+    vi.mocked(findInvitationByToken).mockResolvedValue({ invitation, event })
+    const res = await request(app).get(`/api/invitations/${invitation.token}`)
+    expect(res.status).toBe(200)
+    expect(res.body.invitation).toMatchObject({ email: 'grace@example.com', status: 'pending' })
+    expect(res.body.event).toMatchObject({ id: event.id, title: 'Kickoff' })
+    expect(findInvitationByToken).toHaveBeenCalledWith(invitation.token)
+    expect(findUserBySessionId).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 for an unknown token', async () => {
+    vi.mocked(findInvitationByToken).mockResolvedValue(undefined)
+    const res = await request(app).get('/api/invitations/nope')
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: 'Invitation not found' })
+  })
+})
+
+describe('PATCH /api/invitations/:token', () => {
+  const url = `/api/invitations/${invitation.token}`
+
+  /** Makes the repo behave as if the database held this state, and apply what the service decides. */
+  function givenState(state: {
+    invitation?: Partial<Invitation>
+    event?: Partial<Event>
+    otherAcceptedCount?: number
+  }) {
+    const current = {
+      invitation: { ...invitation, ...state.invitation },
+      event: { ...event, ...state.event },
+      otherAcceptedCount: state.otherAcceptedCount ?? 0,
+    }
+    vi.mocked(answerInvitationByToken).mockImplementation(async (_token, decide) => ({
+      invitation: { ...current.invitation, ...decide(current) },
+      event: current.event,
+    }))
+  }
+
+  it('accepts an invitation without a login', async () => {
+    givenState({})
+    const before = Date.now()
+    const res = await request(app).patch(url).send({ status: 'accepted' })
+    expect(res.status).toBe(200)
+    expect(res.body.invitation.status).toBe('accepted')
+    expect(res.body.invitation.firstName).toBe('Grace')
+    expect(new Date(res.body.invitation.respondedAt).getTime()).toBeGreaterThanOrEqual(before)
+    expect(res.body.event.id).toBe(event.id)
+    expect(vi.mocked(answerInvitationByToken).mock.calls[0]![0]).toBe(invitation.token)
+    expect(findUserBySessionId).not.toHaveBeenCalled()
+  })
+
+  it('declines an invitation', async () => {
+    givenState({})
+    const res = await request(app).patch(url).send({ status: 'declined' })
+    expect(res.status).toBe(200)
+    expect(res.body.invitation.status).toBe('declined')
+  })
+
+  it('lets the guest fill in or clear their name while answering', async () => {
+    givenState({ invitation: { firstName: null, lastName: 'Old' } })
+    const res = await request(app)
+      .patch(url)
+      .send({ status: 'accepted', firstName: ' Grace ', lastName: '' })
+    expect(res.body.invitation).toMatchObject({ firstName: 'Grace', lastName: null })
+  })
+
+  it('lets a guest change their answer', async () => {
+    givenState({ invitation: { status: 'accepted' } })
+    const res = await request(app).patch(url).send({ status: 'declined' })
+    expect(res.body.invitation.status).toBe('declined')
+  })
+
+  it('accepts while there is a free spot', async () => {
+    givenState({ event: { maxGuests: 2 }, otherAcceptedCount: 1 })
+    const res = await request(app).patch(url).send({ status: 'accepted' })
+    expect(res.status).toBe(200)
+  })
+
+  it('refuses to accept when the event is full', async () => {
+    givenState({ event: { maxGuests: 2 }, otherAcceptedCount: 2 })
+    const res = await request(app).patch(url).send({ status: 'accepted' })
+    expect(res.status).toBe(409)
+    expect(res.body).toEqual({ error: 'This event is full' })
+  })
+
+  it('still lets a guest decline when the event is full', async () => {
+    givenState({ event: { maxGuests: 2 }, otherAcceptedCount: 2 })
+    const res = await request(app).patch(url).send({ status: 'declined' })
+    expect(res.status).toBe(200)
+  })
+
+  it('keeps the spot of a guest who had already accepted', async () => {
+    givenState({
+      invitation: { status: 'accepted' },
+      event: { maxGuests: 1 },
+      otherAcceptedCount: 1,
+    })
+    const res = await request(app).patch(url).send({ status: 'accepted', firstName: 'Grace' })
+    expect(res.status).toBe(200)
+  })
+
+  it.each(['accepted', 'declined'])(
+    'refuses %s when the event is not taking responses',
+    async (status) => {
+      givenState({ event: { rsvpEnabled: false } })
+      const res = await request(app).patch(url).send({ status })
+      expect(res.status).toBe(409)
+      expect(res.body).toEqual({ error: 'This event is not taking responses' })
+    },
+  )
+
+  it('returns 404 for an unknown token', async () => {
+    vi.mocked(answerInvitationByToken).mockResolvedValue(undefined)
+    const res = await request(app).patch('/api/invitations/nope').send({ status: 'accepted' })
+    expect(res.status).toBe(404)
+    expect(res.body).toEqual({ error: 'Invitation not found' })
+  })
+
+  it.each([
+    ['a missing status', {}, ['status must be accepted or declined']],
+    ['pending as a status', { status: 'pending' }, ['status must be accepted or declined']],
+    [
+      'a name that is not text',
+      { status: 'accepted', firstName: 5 },
+      ['firstName must be a string'],
+    ],
+  ])('rejects %s', async (_name, body, details) => {
+    const res = await request(app).patch(url).send(body)
+    expect(res.status).toBe(400)
+    expect(res.body.details).toEqual(details)
+    expect(answerInvitationByToken).not.toHaveBeenCalled()
+  })
+
+  it('cannot change the email, event or token of an invitation', async () => {
+    givenState({})
+    const res = await request(app)
+      .patch(url)
+      .send({ status: 'accepted', email: 'evil@example.com', eventId: otherUserId, token: 'x' })
+    expect(res.body.invitation).toMatchObject({
+      email: 'grace@example.com',
+      eventId: event.id,
+      token: invitation.token,
+    })
   })
 })

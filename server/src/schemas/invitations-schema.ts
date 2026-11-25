@@ -49,4 +49,19 @@ export const eventInvitationParamsSchema = z.object({
   invitationId: z.uuid({ error: 'invitationId must be a valid UUID' }),
 })
 
+export const invitationTokenParamsSchema = z.object({
+  token: z.string().min(1),
+})
+
+/** A guest's answer. A name that is left out keeps whatever the host entered. */
+export const answerInvitationSchema = z.object(
+  {
+    status: z.enum(['accepted', 'declined'], { error: 'status must be accepted or declined' }),
+    firstName: name('firstName').optional(),
+    lastName: name('lastName').optional(),
+  },
+  bodyError,
+)
+
 export type InviteGuestsInput = z.infer<typeof inviteGuestsSchema>
+export type AnswerInvitationInput = z.infer<typeof answerInvitationSchema>
