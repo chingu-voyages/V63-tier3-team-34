@@ -5,8 +5,8 @@ import type { CreateEventInput, UpdateEventInput } from '../schemas/events-schem
 
 const eventNotFound = (): HttpError => new HttpError(404, 'Event not found')
 
-export async function createEvent(input: CreateEventInput): Promise<Event> {
-  return eventsRepo.createEvent(input)
+export async function createEvent(input: CreateEventInput, hostId: string): Promise<Event> {
+  return eventsRepo.createEvent({ ...input, hostId })
 }
 
 export async function getEventById(id: string): Promise<Event> {

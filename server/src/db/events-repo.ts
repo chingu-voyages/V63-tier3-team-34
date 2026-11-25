@@ -2,7 +2,9 @@ import { eq } from 'drizzle-orm'
 import { db } from './index.js'
 import { events, type Event, type NewEvent } from './schema.js'
 
-export type EventUpdate = Partial<Omit<NewEvent, 'id' | 'shareToken' | 'createdAt' | 'updatedAt'>>
+export type EventUpdate = Partial<
+  Omit<NewEvent, 'id' | 'shareToken' | 'hostId' | 'createdAt' | 'updatedAt'>
+>
 
 export async function createEvent(data: NewEvent): Promise<Event> {
   const [event] = await db.insert(events).values(data).returning()

@@ -59,6 +59,8 @@ export const sessions = pgTable('sessions', {
 export const events = pgTable('events', {
   id: uuid('id').primaryKey().defaultRandom(),
   shareToken: text('share_token').notNull().unique().$defaultFn(generateShareToken),
+  // The user who created the event. Null for events created before logins existed.
+  hostId: uuid('host_id').references(() => users.id, { onDelete: 'set null' }),
   title: text('title').notNull(),
   description: text('description'),
   location: text('location'),

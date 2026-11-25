@@ -8,7 +8,7 @@ If you are an AI assistant reading this: treat it as the complete API. Do not us
 
 - **Base URL:** `/api`. From the React client, always use relative URLs such as `fetch('/api/events')`; the dev server and the production nginx both forward `/api` to this server. Called directly, the server is at `http://localhost:3000/api`.
 - **Format:** request and response bodies are JSON. Send `Content-Type: application/json` on every request that has a body.
-- **Auth:** users log in with GitHub. The server then sets an `HttpOnly` session cookie, which the browser sends back automatically on every `/api` request; client code never reads or stores a token. No endpoint needs a login yet: everything still works for anonymous visitors. See [Logging in](#logging-in).
+- **Auth:** users log in with GitHub. The server then sets an `HttpOnly` session cookie, which the browser sends back automatically on every `/api` request; client code never reads or stores a token. Only creating an event needs a login. Everything else works for anonymous visitors. See [Logging in](#logging-in).
 - **CORS:** only the client origin (`http://localhost:5173` in development) may call the server directly from a browser. Relative `/api` URLs avoid the issue.
 
 ## Endpoints at a glance
@@ -20,7 +20,7 @@ If you are an AI assistant reading this: treat it as the complete API. Do not us
 | `GET`    | `/api/auth/github`              | Start a GitHub login (a link)   | `302` redirect |
 | `GET`    | `/api/auth/me`                  | Get the logged-in user, if any  | `200` + user   |
 | `POST`   | `/api/auth/logout`              | Log out                         | `204`, no body |
-| `POST`   | `/api/events`                   | Create an event                 | `201` + event  |
+| `POST`   | `/api/events`                   | Create an event (login needed)  | `201` + event  |
 | `GET`    | `/api/events/:id`               | Get one event by its id         | `200` + event  |
 | `GET`    | `/api/events/share/:shareToken` | Get one event by its share code | `200` + event  |
 | `PATCH`  | `/api/events/:id`               | Change some fields of an event  | `200` + event  |
@@ -31,6 +31,7 @@ Things that do **not** exist:
 - No email/password login, no sign-up form and no "forgot password". An account is created the first time someone logs in with GitHub.
 - No Google login (or any provider other than GitHub) yet.
 - No endpoint to edit or delete a user, and none to list or search users.
+- `PATCH` and `DELETE` on an event do not check who is asking yet: they work without a login and for events of other users.
 - No endpoint lists all events. `GET /api/events` returns `404`.
 - No `PUT`. Updates use `PATCH`.
 - No pagination, search, filtering or sorting.
@@ -75,16 +76,16 @@ Details:
 }
 ```
 
-| Field       | Type             | Notes                                                                        |
-| ----------- | ---------------- | ---------------------------------------------------------------------------- |
-| `id`        | string (UUID)    | Set by the server                                                            |
-| `email`     | string           | Lower-cased and verified by GitHub, so it can be compared with `guestEmails` |
-| `firstName` | string           | Never empty. The GitHub username when the GitHub profile has no name         |
-| `lastName`  | string           | `""` when the provider only knows one name. Never `null`                     |
-| `avatarUrl` | string or `null` | Profile picture hosted by GitHub                                             |
-| `createdAt` | string           | ISO 8601 date-time in UTC of the first login                                 |
+| Field       | Type             | Notes                                                                         |
+| ----------- | ---------------- | ----------------------------------------------------------------------------- |
+| `id`        | string (UUID)    | Set by the server. The same value as `hostId` on the events this user created |
+| `email`     | string           | Lower-cased and verified by GitHub, so it can be compared with `guestEmails`  |
+| `firstName` | string           | Never empty. The GitHub username when the GitHub profile has no name          |
+| `lastName`  | string           | `""` when the provider only knows one name. Never `null`                      |
+| `avatarUrl` | string or `null` | Profile picture hosted by GitHub                                              |
+| `createdAt` | string           | ISO 8601 date-time in UTC of the first login                                  |
 
-The name and picture are copied from GitHub at the first login and not refreshed afterwards. There is no `role` field.
+The name and picture are copied from GitHub at the first login and not refreshed afterwards. There is no `role` field: whether someone is the host of an event is `event.hostId === user.id`.
 
 ## The event object
 
@@ -94,6 +95,7 @@ Every endpoint that returns an event returns this shape:
 {
   "id": "ba34b75b-bd29-4ed8-944a-31ec5d690cd8",
   "shareToken": "N-BmF19VFtFEA6IPMJqotw",
+  "hostId": "0b9d3f0e-6c1f-4f65-9d0f-3f1f0a3c8a11",
   "title": "Team Kickoff",
   "description": "Sprint 1 planning",
   "location": "Zoom",
@@ -111,24 +113,25 @@ Every endpoint that returns an event returns this shape:
 }
 ```
 
-| Field            | Type             | Notes                                                                            |
-| ---------------- | ---------------- | -------------------------------------------------------------------------------- |
-| `id`             | string (UUID)    | Set by the server. Used in the URL to get, update or delete the event            |
-| `shareToken`     | string           | Set by the server. 22 URL-safe characters, for shareable links                   |
-| `title`          | string           | Never empty                                                                      |
-| `description`    | string or `null` |                                                                                  |
-| `location`       | string or `null` |                                                                                  |
-| `startsAt`       | string           | ISO 8601 date-time in UTC                                                        |
-| `endsAt`         | string or `null` | ISO 8601 date-time in UTC                                                        |
-| `eventType`      | string or `null` | Free text, e.g. `"Team Building"`. The server does not restrict the values       |
-| `imageUrl`       | string or `null` | Link to an image hosted somewhere else                                           |
-| `guestEmails`    | array of strings | Invited email addresses, lower-cased, no duplicates. `[]` when nobody is invited |
-| `maxGuests`      | number or `null` | Whole number, 1 or more. `null` means no limit                                   |
-| `admissionPrice` | number or `null` | 0 or more, at most 2 decimal places. No currency is stored. `null` means not set |
-| `isPublic`       | boolean          | `false` unless set                                                               |
-| `rsvpEnabled`    | boolean          | `true` unless set                                                                |
-| `createdAt`      | string           | ISO 8601 date-time in UTC. Set by the server                                     |
-| `updatedAt`      | string           | ISO 8601 date-time in UTC. Changes on every successful update                    |
+| Field            | Type             | Notes                                                                               |
+| ---------------- | ---------------- | ----------------------------------------------------------------------------------- |
+| `id`             | string (UUID)    | Set by the server. Used in the URL to get, update or delete the event               |
+| `shareToken`     | string           | Set by the server. 22 URL-safe characters, for shareable links                      |
+| `hostId`         | string or `null` | Set by the server: the `id` of the user who created the event. `null` on old events |
+| `title`          | string           | Never empty                                                                         |
+| `description`    | string or `null` |                                                                                     |
+| `location`       | string or `null` |                                                                                     |
+| `startsAt`       | string           | ISO 8601 date-time in UTC                                                           |
+| `endsAt`         | string or `null` | ISO 8601 date-time in UTC                                                           |
+| `eventType`      | string or `null` | Free text, e.g. `"Team Building"`. The server does not restrict the values          |
+| `imageUrl`       | string or `null` | Link to an image hosted somewhere else                                              |
+| `guestEmails`    | array of strings | Invited email addresses, lower-cased, no duplicates. `[]` when nobody is invited    |
+| `maxGuests`      | number or `null` | Whole number, 1 or more. `null` means no limit                                      |
+| `admissionPrice` | number or `null` | 0 or more, at most 2 decimal places. No currency is stored. `null` means not set    |
+| `isPublic`       | boolean          | `false` unless set                                                                  |
+| `rsvpEnabled`    | boolean          | `true` unless set                                                                   |
+| `createdAt`      | string           | ISO 8601 date-time in UTC. Set by the server                                        |
+| `updatedAt`      | string           | ISO 8601 date-time in UTC. Changes on every successful update                       |
 
 TypeScript types for the client:
 
@@ -145,6 +148,7 @@ export interface User {
 export interface Event {
   id: string
   shareToken: string
+  hostId: string | null // User.id of the creator
   title: string
   description: string | null
   location: string | null
@@ -214,19 +218,20 @@ These apply to both `POST` and `PATCH`.
 - **`isPublic`, `rsvpEnabled`** must be `true` or `false`. The strings `"true"` and `"false"` are rejected.
 - **Optional fields with no value:** for `description`, `location`, `endsAt`, `eventType`, `imageUrl`, `maxGuests` and `admissionPrice`, `null` and `""` both mean "no value" and are stored as `null`.
 - **Defaults on create:** a field you leave out is stored as `null`, except `guestEmails` (`[]`), `isPublic` (`false`) and `rsvpEnabled` (`true`).
-- **Unknown fields are ignored.** You cannot set `id`, `shareToken`, `createdAt` or `updatedAt`; sending them has no effect.
+- **Unknown fields are ignored.** You cannot set `id`, `shareToken`, `hostId`, `createdAt` or `updatedAt`; sending them has no effect. `hostId` is always the logged-in user.
 
 ## Errors
 
 Every error response is JSON with an `error` string. Validation errors also have a `details` array with one message per problem.
 
-| Status | When                                     | Body                                                          |
-| ------ | ---------------------------------------- | ------------------------------------------------------------- |
-| `400`  | The body or the id in the URL is invalid | `{ "error": "Validation failed", "details": ["...", "..."] }` |
-| `400`  | The body is not valid JSON               | `{ "error": "<message from the JSON parser>" }`               |
-| `404`  | No event has that id or share token      | `{ "error": "Event not found" }`                              |
-| `404`  | The URL or method is not an endpoint     | `{ "error": "Route not found: GET /api/whatever" }`           |
-| `500`  | Something broke on the server            | `{ "error": "Internal server error" }`                        |
+| Status | When                                                     | Body                                                          |
+| ------ | -------------------------------------------------------- | ------------------------------------------------------------- |
+| `400`  | The body or the id in the URL is invalid                 | `{ "error": "Validation failed", "details": ["...", "..."] }` |
+| `400`  | The body is not valid JSON                               | `{ "error": "<message from the JSON parser>" }`               |
+| `401`  | The endpoint needs a login and there is no valid session | `{ "error": "Authentication required" }`                      |
+| `404`  | No event has that id or share token                      | `{ "error": "Event not found" }`                              |
+| `404`  | The URL or method is not an endpoint                     | `{ "error": "Route not found: GET /api/whatever" }`           |
+| `500`  | Something broke on the server                            | `{ "error": "Internal server error" }`                        |
 
 Validation messages you can get in `details`:
 
@@ -300,7 +305,7 @@ Response `200`, logged in:
 }
 ```
 
-Response `200`, not logged in (this is not an error):
+Response `200`, not logged in (this is not an error, so there is no `401` here):
 
 ```json
 { "user": null }
@@ -314,7 +319,7 @@ Response `204` with an **empty body**, also when nobody was logged in.
 
 ### `POST /api/events`
 
-Creates an event.
+Creates an event. **Needs a login:** the logged-in user becomes the event's host (`hostId`).
 
 Request body:
 
@@ -361,9 +366,9 @@ Only `title` and `startsAt` are needed; this is also a valid request:
 { "title": "Standup", "startsAt": "2026-12-02T09:00:00Z" }
 ```
 
-Response `201`: the created event object, including the new `id` and `shareToken`.
+Response `201`: the created event object, including the new `id`, `shareToken` and `hostId`.
 
-Errors: `400` if validation fails. Example:
+Errors: `401` if nobody is logged in (checked before the body is validated), `400` if validation fails. Example:
 
 ```json
 {
@@ -463,6 +468,7 @@ export const logout = () => api<void>('/auth/logout', { method: 'POST' })
 export const githubLoginUrl = (returnTo = '/') =>
   `/api/auth/github?returnTo=${encodeURIComponent(returnTo)}`
 
+// Throws "Authentication required" when nobody is logged in; check getCurrentUser() first.
 export const createEvent = (input: CreateEventInput) =>
   api<Event>('/events', { method: 'POST', body: JSON.stringify(input) })
 
