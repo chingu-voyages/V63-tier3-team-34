@@ -8,7 +8,7 @@ If you are an AI assistant reading this: treat it as the complete API. Do not us
 
 - **Base URL:** `/api`. From the React client, always use relative URLs such as `fetch('/api/events')`; the dev server and the production nginx both forward `/api` to this server. Called directly, the server is at `http://localhost:3000/api`.
 - **Format:** request and response bodies are JSON. Send `Content-Type: application/json` on every request that has a body.
-- **Auth:** none. There are no logins, cookies or tokens.
+- **Auth:** users log in with GitHub. The server then sets an `HttpOnly` session cookie, which the browser sends back automatically on every `/api` request; client code never reads or stores a token. No endpoint needs a login yet: everything still works for anonymous visitors. See [Logging in](#logging-in).
 - **CORS:** only the client origin (`http://localhost:5173` in development) may call the server directly from a browser. Relative `/api` URLs avoid the issue.
 
 ## Endpoints at a glance
@@ -17,6 +17,9 @@ If you are an AI assistant reading this: treat it as the complete API. Do not us
 | -------- | ------------------------------- | ------------------------------- | -------------- |
 | `GET`    | `/api`                          | Confirm the API is reachable    | `200`          |
 | `GET`    | `/api/health`                   | Check that the server is up     | `200`          |
+| `GET`    | `/api/auth/github`              | Start a GitHub login (a link)   | `302` redirect |
+| `GET`    | `/api/auth/me`                  | Get the logged-in user, if any  | `200` + user   |
+| `POST`   | `/api/auth/logout`              | Log out                         | `204`, no body |
 | `POST`   | `/api/events`                   | Create an event                 | `201` + event  |
 | `GET`    | `/api/events/:id`               | Get one event by its id         | `200` + event  |
 | `GET`    | `/api/events/share/:shareToken` | Get one event by its share code | `200` + event  |
@@ -25,11 +28,63 @@ If you are an AI assistant reading this: treat it as the complete API. Do not us
 
 Things that do **not** exist:
 
+- No email/password login, no sign-up form and no "forgot password". An account is created the first time someone logs in with GitHub.
+- No Google login (or any provider other than GitHub) yet.
+- No endpoint to edit or delete a user, and none to list or search users.
 - No endpoint lists all events. `GET /api/events` returns `404`.
 - No `PUT`. Updates use `PATCH`.
 - No pagination, search, filtering or sorting.
 - No image upload. An event stores a link to an image (`imageUrl`), not the image file.
 - No invitation emails and no RSVP endpoints. `guestEmails`, `isPublic` and `rsvpEnabled` are only stored and returned; the server does nothing else with them yet.
+
+## Logging in
+
+Login is a full-page redirect, not a `fetch` call:
+
+1. The client sends the browser to `/api/auth/github` with a normal link: `<a href="/api/auth/github">Continue with GitHub</a>`. Do not use `fetch` and do not use a React Router `<Link>` for this.
+2. The server redirects to GitHub, where the user approves.
+3. GitHub sends the browser back to the server, which creates the user (first login only), sets the session cookie and redirects to the client: to `/`, or to the path given in `returnTo`.
+4. The client calls `GET /api/auth/me` when it loads to find out who is logged in.
+
+Details:
+
+- **`returnTo`:** add `?returnTo=/eventdashboard` to the login link to land on that page after login. It must be a path on the client that starts with `/`; anything else is ignored and the user lands on `/`.
+- **Failed login:** the browser is sent to `/?authError=<code>` on the client instead. Read it with `new URLSearchParams(location.search).get('authError')` and show a message.
+
+  | `authError`        | Meaning                                                                |
+  | ------------------ | ---------------------------------------------------------------------- |
+  | `access_denied`    | The user pressed Cancel on the GitHub page                             |
+  | `email_unverified` | The GitHub account has no verified primary email address               |
+  | `invalid_state`    | The login took more than 10 minutes or was not started here. Try again |
+  | `provider_error`   | GitHub could not be reached or rejected the login. Try again           |
+  | `not_configured`   | The server has no GitHub client id/secret (see `.env.example`)         |
+
+- **Session length:** 30 days from login, or until `POST /api/auth/logout`.
+- **The cookie:** named `session`, `HttpOnly` (JavaScript cannot read it) and `SameSite=Lax`. `fetch('/api/...')` sends it by default; no `credentials` option or `Authorization` header is needed.
+
+### The user object
+
+```json
+{
+  "id": "0b9d3f0e-6c1f-4f65-9d0f-3f1f0a3c8a11",
+  "email": "ada@example.com",
+  "firstName": "Ada",
+  "lastName": "Lovelace",
+  "avatarUrl": "https://avatars.githubusercontent.com/u/583231?v=4",
+  "createdAt": "2026-11-25T07:08:57.482Z"
+}
+```
+
+| Field       | Type             | Notes                                                                        |
+| ----------- | ---------------- | ---------------------------------------------------------------------------- |
+| `id`        | string (UUID)    | Set by the server                                                            |
+| `email`     | string           | Lower-cased and verified by GitHub, so it can be compared with `guestEmails` |
+| `firstName` | string           | Never empty. The GitHub username when the GitHub profile has no name         |
+| `lastName`  | string           | `""` when the provider only knows one name. Never `null`                     |
+| `avatarUrl` | string or `null` | Profile picture hosted by GitHub                                             |
+| `createdAt` | string           | ISO 8601 date-time in UTC of the first login                                 |
+
+The name and picture are copied from GitHub at the first login and not refreshed afterwards. There is no `role` field.
 
 ## The event object
 
@@ -78,6 +133,15 @@ Every endpoint that returns an event returns this shape:
 TypeScript types for the client:
 
 ```ts
+export interface User {
+  id: string
+  email: string
+  firstName: string
+  lastName: string // '' when unknown
+  avatarUrl: string | null
+  createdAt: string
+}
+
 export interface Event {
   id: string
   shareToken: string
@@ -179,6 +243,7 @@ Validation messages you can get in `details`:
 - `admissionPrice must be a number of at least 0 with at most 2 decimal places`
 - `isPublic must be true or false`, `rsvpEnabled must be true or false`
 - `id must be a valid UUID`
+- `provider must be one of github`
 - `at least one of title, startsAt, endsAt, description, location, eventType, imageUrl, guestEmails, maxGuests, admissionPrice, isPublic, rsvpEnabled is required` (`PATCH` only)
 - `Request body must be a JSON object`
 
@@ -205,6 +270,47 @@ Response `200`:
 ```
 
 `uptime` is the number of seconds the server has been running.
+
+### `GET /api/auth/github`
+
+Starts a login. Open it with a link or `window.location.assign(...)`, never with `fetch`; see [Logging in](#logging-in).
+
+- Optional query parameter `returnTo`: the client path to land on afterwards, e.g. `/api/auth/github?returnTo=/eventdashboard`.
+
+Response `302`: a redirect to GitHub. The login ends with a redirect back to the client, to `returnTo` on success or to `/?authError=<code>` on failure.
+
+(GitHub sends the browser back through `GET /api/auth/github/callback`. The client never calls that URL itself.)
+
+### `GET /api/auth/me`
+
+Returns the logged-in user. No input. Call it once when the app loads.
+
+Response `200`, logged in:
+
+```json
+{
+  "user": {
+    "id": "0b9d3f0e-6c1f-4f65-9d0f-3f1f0a3c8a11",
+    "email": "ada@example.com",
+    "firstName": "Ada",
+    "lastName": "Lovelace",
+    "avatarUrl": "https://avatars.githubusercontent.com/u/583231?v=4",
+    "createdAt": "2026-11-25T07:08:57.482Z"
+  }
+}
+```
+
+Response `200`, not logged in (this is not an error):
+
+```json
+{ "user": null }
+```
+
+### `POST /api/auth/logout`
+
+Ends the session and removes the cookie. No request body.
+
+Response `204` with an **empty body**, also when nobody was logged in.
 
 ### `POST /api/events`
 
@@ -348,6 +454,15 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T
 }
 
+// null when nobody is logged in
+export const getCurrentUser = async () => (await api<{ user: User | null }>('/auth/me')).user
+
+export const logout = () => api<void>('/auth/logout', { method: 'POST' })
+
+// Login is a page navigation, not a fetch: <a href={githubLoginUrl('/eventdashboard')}>
+export const githubLoginUrl = (returnTo = '/') =>
+  `/api/auth/github?returnTo=${encodeURIComponent(returnTo)}`
+
 export const createEvent = (input: CreateEventInput) =>
   api<Event>('/events', { method: 'POST', body: JSON.stringify(input) })
 
@@ -402,8 +517,10 @@ How the create-event form maps to the API:
 
 Update this file whenever an endpoint or a validation rule changes. The source of truth is:
 
-- Routes: `src/app.ts`, `src/routes/events.ts`, `src/routes/health.ts`
-- Input validation: `src/schemas/events-schema.ts`
-- Business rules: `src/services/events-service.ts`
+- Routes: `src/app.ts`, `src/routes/auth.ts`, `src/routes/events.ts`, `src/routes/health.ts`
+- Which routes need a login: the ones with `requireAuth` (`src/middleware/require-auth.ts`)
+- Input validation: `src/schemas/events-schema.ts`, `src/schemas/auth-schema.ts`
+- Business rules: `src/services/events-service.ts`, `src/services/auth-service.ts`
+- GitHub specifics: `src/auth/oauth-providers.ts`
 - Error responses: `src/middleware/error-handler.ts`
 - Database columns: `src/db/schema.ts`
