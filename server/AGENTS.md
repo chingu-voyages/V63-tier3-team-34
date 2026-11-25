@@ -8,26 +8,28 @@ If you are an AI assistant reading this: treat it as the complete API. Do not us
 
 - **Base URL:** `/api`. From the React client, always use relative URLs such as `fetch('/api/events')`; the dev server and the production nginx both forward `/api` to this server. Called directly, the server is at `http://localhost:3000/api`.
 - **Format:** request and response bodies are JSON. Send `Content-Type: application/json` on every request that has a body.
-- **Auth:** users log in with GitHub. The server then sets an `HttpOnly` session cookie, which the browser sends back automatically on every `/api` request; client code never reads or stores a token. Creating an event needs a login, and only the host of an event (the user who created it) can change or delete it. Reading events works for anonymous visitors. See [Logging in](#logging-in).
+- **Auth:** users log in with GitHub. The server then sets an `HttpOnly` session cookie, which the browser sends back automatically on every `/api` request; client code never reads or stores a token. Creating an event needs a login, and only the host of an event (the user who created it) can change or delete it. Reading events works for anonymous visitors, and so does answering an invitation: a guest is identified by the secret token in their invitation link, not by a login. See [Logging in](#logging-in).
 - **CORS:** only the client origin (`http://localhost:5173` in development) may call the server directly from a browser. Relative `/api` URLs avoid the issue.
 
 ## Endpoints at a glance
 
-| Method   | Path                                        | What it does                       | Success             |
-| -------- | ------------------------------------------- | ---------------------------------- | ------------------- |
-| `GET`    | `/api`                                      | Confirm the API is reachable       | `200`               |
-| `GET`    | `/api/health`                               | Check that the server is up        | `200`               |
-| `GET`    | `/api/auth/github`                          | Start a GitHub login (a link)      | `302` redirect      |
-| `GET`    | `/api/auth/me`                              | Get the logged-in user, if any     | `200` + user        |
-| `POST`   | `/api/auth/logout`                          | Log out                            | `204`, no body      |
-| `POST`   | `/api/events`                               | Create an event (login needed)     | `201` + event       |
-| `GET`    | `/api/events/:id`                           | Get one event by its id            | `200` + event       |
-| `GET`    | `/api/events/share/:shareToken`             | Get one event by its share code    | `200` + event       |
-| `PATCH`  | `/api/events/:id`                           | Change an event (host only)        | `200` + event       |
-| `DELETE` | `/api/events/:id`                           | Delete an event (host only)        | `204`, no body      |
-| `POST`   | `/api/events/:id/invitations`               | Invite guests (host only)          | `201` + invitations |
-| `GET`    | `/api/events/:id/invitations`               | List an event's guests (host only) | `200` + invitations |
-| `DELETE` | `/api/events/:id/invitations/:invitationId` | Uninvite a guest (host only)       | `204`, no body      |
+| Method   | Path                                        | What it does                       | Success                      |
+| -------- | ------------------------------------------- | ---------------------------------- | ---------------------------- |
+| `GET`    | `/api`                                      | Confirm the API is reachable       | `200`                        |
+| `GET`    | `/api/health`                               | Check that the server is up        | `200`                        |
+| `GET`    | `/api/auth/github`                          | Start a GitHub login (a link)      | `302` redirect               |
+| `GET`    | `/api/auth/me`                              | Get the logged-in user, if any     | `200` + user                 |
+| `POST`   | `/api/auth/logout`                          | Log out                            | `204`, no body               |
+| `POST`   | `/api/events`                               | Create an event (login needed)     | `201` + event                |
+| `GET`    | `/api/events/:id`                           | Get one event by its id            | `200` + event                |
+| `GET`    | `/api/events/share/:shareToken`             | Get one event by its share code    | `200` + event                |
+| `PATCH`  | `/api/events/:id`                           | Change an event (host only)        | `200` + event                |
+| `DELETE` | `/api/events/:id`                           | Delete an event (host only)        | `204`, no body               |
+| `POST`   | `/api/events/:id/invitations`               | Invite guests (host only)          | `201` + invitations          |
+| `GET`    | `/api/events/:id/invitations`               | List an event's guests (host only) | `200` + invitations          |
+| `DELETE` | `/api/events/:id/invitations/:invitationId` | Uninvite a guest (host only)       | `204`, no body               |
+| `GET`    | `/api/invitations/:token`                   | A guest views their invitation     | `200` + invitation and event |
+| `PATCH`  | `/api/invitations/:token`                   | A guest accepts or declines        | `200` + invitation and event |
 
 Things that do **not** exist:
 
@@ -40,7 +42,8 @@ Things that do **not** exist:
 - No image upload. An event stores a link to an image (`imageUrl`), not the image file.
 - No `guestEmails` on an event. Guests are invited through the invitations endpoints; a `guestEmails` field sent when creating or changing an event is ignored.
 - No invitation emails: inviting a guest only stores the invitation. The host has to pass on the guest's link.
-- No way for a guest to answer an invitation yet, so every invitation stays `pending`. `isPublic` and `rsvpEnabled` are only stored and returned.
+- No RSVP for people who were not invited: nobody can add themselves to an event, also not to a public one. `isPublic` is only stored and returned.
+- No page in the client for the guest's link yet. The link format is up to the client, for example `/rsvp/<token>`.
 
 ## Logging in
 
@@ -128,10 +131,10 @@ Every endpoint that returns an event returns this shape:
 | `endsAt`         | string or `null` | ISO 8601 date-time in UTC                                                                                                                     |
 | `eventType`      | string or `null` | Free text, e.g. `"Team Building"`. The server does not restrict the values                                                                    |
 | `imageUrl`       | string or `null` | Link to an image hosted somewhere else                                                                                                        |
-| `maxGuests`      | number or `null` | Whole number, 1 or more. `null` means no limit                                                                                                |
+| `maxGuests`      | number or `null` | Whole number, 1 or more: how many guests can accept. `null` means no limit                                                                    |
 | `admissionPrice` | number or `null` | 0 or more, at most 2 decimal places. No currency is stored. `null` means not set                                                              |
 | `isPublic`       | boolean          | `false` unless set                                                                                                                            |
-| `rsvpEnabled`    | boolean          | `true` unless set                                                                                                                             |
+| `rsvpEnabled`    | boolean          | `true` unless set. When `false`, guests cannot accept or decline                                                                              |
 | `createdAt`      | string           | ISO 8601 date-time in UTC. Set by the server                                                                                                  |
 | `updatedAt`      | string           | ISO 8601 date-time in UTC. Changes on every successful update                                                                                 |
 
@@ -227,7 +230,7 @@ An invitation is one guest invited to one event. Guests are known by their email
 | `email`       | string           | Lower-cased. A guest can be invited to the same event only once                                                                               |
 | `firstName`   | string or `null` | Optional; `null` when the host did not give a name                                                                                            |
 | `lastName`    | string or `null` | Optional; `null` when the host did not give a name                                                                                            |
-| `status`      | string           | `"pending"`, `"accepted"` or `"declined"`. Always `"pending"` for now                                                                         |
+| `status`      | string           | `"pending"` until the guest answers, then `"accepted"` or `"declined"`                                                                        |
 | `token`       | string           | Set by the server. A secret that identifies this guest, meant for the guest's personal link. Treat it like a password for that one invitation |
 | `respondedAt` | string or `null` | ISO 8601 date-time in UTC of the guest's answer. `null` while `pending`                                                                       |
 | `createdAt`   | string           | ISO 8601 date-time in UTC. Set by the server                                                                                                  |
@@ -256,6 +259,17 @@ export interface GuestInput {
 
 Invitations are deleted together with their event.
 
+**The guest's link.** The server sends no email, so the host passes the link on. Build it in the client from the `token`, for example `https://your-site/rsvp/kq3ZcVbnT0O1p9u4mYx2Hg`. The page behind that link reads the token from the URL and calls `GET /api/invitations/:token` and `PATCH /api/invitations/:token`. Anyone who has the link can answer for that guest, so show it only to the host.
+
+The guest endpoints return the invitation together with its event:
+
+```ts
+export interface InvitationWithEvent {
+  invitation: Invitation
+  event: Event
+}
+```
+
 ## Rules for input fields
 
 These apply to both `POST` and `PATCH` on events.
@@ -277,16 +291,19 @@ These apply to both `POST` and `PATCH` on events.
 
 Every error response is JSON with an `error` string. Validation errors also have a `details` array with one message per problem.
 
-| Status | When                                                     | Body                                                          |
-| ------ | -------------------------------------------------------- | ------------------------------------------------------------- |
-| `400`  | The body or the id in the URL is invalid                 | `{ "error": "Validation failed", "details": ["...", "..."] }` |
-| `400`  | The body is not valid JSON                               | `{ "error": "<message from the JSON parser>" }`               |
-| `401`  | The endpoint needs a login and there is no valid session | `{ "error": "Authentication required" }`                      |
-| `403`  | The user is logged in but is not the host of the event   | `{ "error": "Only the host of this event can do that" }`      |
-| `404`  | No event has that id or share token                      | `{ "error": "Event not found" }`                              |
-| `404`  | The event has no invitation with that id                 | `{ "error": "Invitation not found" }`                         |
-| `404`  | The URL or method is not an endpoint                     | `{ "error": "Route not found: GET /api/whatever" }`           |
-| `500`  | Something broke on the server                            | `{ "error": "Internal server error" }`                        |
+| Status | When                                                              | Body                                                          |
+| ------ | ----------------------------------------------------------------- | ------------------------------------------------------------- |
+| `400`  | The body or the id in the URL is invalid                          | `{ "error": "Validation failed", "details": ["...", "..."] }` |
+| `400`  | The body is not valid JSON                                        | `{ "error": "<message from the JSON parser>" }`               |
+| `401`  | The endpoint needs a login and there is no valid session          | `{ "error": "Authentication required" }`                      |
+| `403`  | The user is logged in but is not the host of the event            | `{ "error": "Only the host of this event can do that" }`      |
+| `404`  | No event has that id or share token                               | `{ "error": "Event not found" }`                              |
+| `404`  | The event has no invitation with that id                          | `{ "error": "Invitation not found" }`                         |
+| `404`  | No invitation has that token (also after the guest was uninvited) | `{ "error": "Invitation not found" }`                         |
+| `409`  | A guest answers but the event has `rsvpEnabled: false`            | `{ "error": "This event is not taking responses" }`           |
+| `409`  | A guest accepts but `maxGuests` guests have already accepted      | `{ "error": "This event is full" }`                           |
+| `404`  | The URL or method is not an endpoint                              | `{ "error": "Route not found: GET /api/whatever" }`           |
+| `500`  | Something broke on the server                                     | `{ "error": "Internal server error" }`                        |
 
 Validation messages you can get in `details`:
 
@@ -304,6 +321,7 @@ Validation messages you can get in `details`:
 - `guests must be an array of 1 to 100 objects like { "email": "ada@example.com" }`
 - `guests: every guest needs an email`
 - `guests: "not-an-email" is not a valid email address`
+- `status must be accepted or declined`
 - `firstName must be a string`, `firstName must be at most 100 characters` (same for `lastName`)
 - `provider must be one of github`
 - `at least one of title, startsAt, endsAt, description, location, eventType, imageUrl, maxGuests, admissionPrice, isPublic, rsvpEnabled is required` (`PATCH` only)
@@ -567,6 +585,51 @@ Response `204` with an **empty body**.
 
 Errors: `401` if nobody is logged in, `400` if either id is not a UUID, `404` if the event does not exist or has no invitation with that id, `403` if the logged-in user is not the host.
 
+### `GET /api/invitations/:token`
+
+Returns one invitation and its event, for the page a guest lands on. **No login.**
+
+- `:token` is the `token` of the invitation, taken from the guest's link.
+
+Response `200`:
+
+```json
+{
+  "invitation": { "id": "7a1f6a52-4b53-4b0e-9a3c-0d6c1f2b9e10", "status": "pending", "...": "..." },
+  "event": { "id": "ba34b75b-bd29-4ed8-944a-31ec5d690cd8", "title": "Team Kickoff", "...": "..." }
+}
+```
+
+`invitation` is a full invitation object and `event` a full event object. Other guests are not included.
+
+Errors: `404` if no invitation has that token.
+
+### `PATCH /api/invitations/:token`
+
+A guest accepts or declines their invitation. **No login.** The guest can call it again to change their answer.
+
+Request body:
+
+| Field       | Required | Type                         | Notes                                            |
+| ----------- | -------- | ---------------------------- | ------------------------------------------------ |
+| `status`    | yes      | `"accepted"` or `"declined"` | `"pending"` cannot be sent                       |
+| `firstName` | no       | string or `null`             | Left out: the name the host entered is kept      |
+| `lastName`  | no       | string or `null`             | Trimmed, at most 100 characters; `""` means none |
+
+```json
+{ "status": "accepted", "firstName": "Grace", "lastName": "Hopper" }
+```
+
+Rules:
+
+- If the event has `rsvpEnabled: false`, every answer is refused with `409`.
+- If the event has a `maxGuests` and that many guests have already accepted, accepting is refused with `409`. Declining always works, and a guest who has already accepted keeps their spot.
+- `email`, `eventId` and `token` cannot be changed; sending them has no effect.
+
+Response `200`: the same shape as `GET /api/invitations/:token`, with the new `status` and `respondedAt`.
+
+Errors: `400` if validation fails, `404` if no invitation has that token, `409` if the event is not taking responses or is full. Show the `error` text of a `409` to the guest.
+
 ## Example client code
 
 A small typed wrapper around `fetch` that handles the empty `204` response and turns error responses into exceptions:
@@ -621,6 +684,20 @@ export const getInvitations = async (eventId: string) =>
 
 export const removeInvitation = (eventId: string, invitationId: string) =>
   api<void>(`/events/${eventId}/invitations/${invitationId}`, { method: 'DELETE' })
+
+// For the guest's page. No login needed; `token` comes from the URL of the guest's link.
+export const getInvitation = (token: string) =>
+  api<InvitationWithEvent>(`/invitations/${encodeURIComponent(token)}`)
+
+// Throws "This event is full" or "This event is not taking responses" when the answer is refused.
+export const answerInvitation = (
+  token: string,
+  answer: { status: 'accepted' | 'declined'; firstName?: string | null; lastName?: string | null },
+) =>
+  api<InvitationWithEvent>(`/invitations/${encodeURIComponent(token)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(answer),
+  })
 ```
 
 Form inputs give you strings, so convert them before sending:
