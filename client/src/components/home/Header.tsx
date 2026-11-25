@@ -1,4 +1,5 @@
 import { CirclePlay, Menu, UserRound } from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -9,16 +10,26 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { Link } from 'react-router-dom'
+import type { User } from '@/lib/auth'
 
 export function Header({
   menuOpen,
   setMenuOpen,
   setModal,
+  user,
+  onLogout,
 }: {
   menuOpen: boolean
   setMenuOpen: (open: boolean) => void
   setModal: (modal: string) => void
+  /** `undefined` while the app is still finding out whether someone is signed in. */
+  user: User | null | undefined
+  onLogout: () => void
 }) {
+  // Until that is known, the sign-in controls keep their space but stay hidden, so a signed-in
+  // user does not see "Sign In" flash by on every page load.
+  const hiddenWhileLoading = user === undefined ? 'invisible' : ''
+  const fullName = user ? `${user.firstName} ${user.lastName}`.trim() : ''
   const openModal = (modal: string) => {
     setMenuOpen(false)
     setModal(modal)
@@ -54,25 +65,45 @@ export function Header({
           {navigation}
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="ghost"
-            className="hidden min-[581px]:inline-flex"
-            onClick={() => openModal('signin')}
-          >
-            Sign In
-          </Button>
+          {user ? (
+            <Button variant="ghost" className="hidden min-[581px]:inline-flex" onClick={onLogout}>
+              Log out
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              className={`hidden min-[581px]:inline-flex ${hiddenWhileLoading}`}
+              onClick={() => openModal('signin')}
+            >
+              Sign In
+            </Button>
+          )}
           <Button className="hidden min-[581px]:inline-flex" onClick={() => openModal('demo')}>
             <CirclePlay />
             Try Demo ? Guest
           </Button>
-          <Button
-            size="icon"
-            className="size-9 rounded-full"
-            aria-label="Sign in to your account"
-            onClick={() => openModal('signin')}
-          >
-            <UserRound />
-          </Button>
+          {user ? (
+            <Avatar
+              className="size-9"
+              role="img"
+              aria-label={`Signed in as ${fullName}`}
+              title={`${fullName} (${user.email})`}
+            >
+              {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt="" />}
+              <AvatarFallback className="bg-primary font-semibold text-primary-foreground">
+                {(user.firstName.slice(0, 1) + user.lastName.slice(0, 1)).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          ) : (
+            <Button
+              size="icon"
+              className={`size-9 rounded-full ${hiddenWhileLoading}`}
+              aria-label="Sign in to your account"
+              onClick={() => openModal('signin')}
+            >
+              <UserRound />
+            </Button>
+          )}
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger asChild>
               <Button
@@ -94,6 +125,18 @@ export function Header({
                 aria-label="Mobile navigation"
               >
                 {navigation}
+                {/* The header's own Log out button is hidden on small screens. */}
+                {user && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onLogout()
+                    }}
+                  >
+                    Log out
+                  </Button>
+                )}
               </nav>
             </SheetContent>
           </Sheet>
