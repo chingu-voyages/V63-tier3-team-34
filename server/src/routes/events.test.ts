@@ -62,8 +62,10 @@ beforeEach(() => {
   vi.mocked(findUserBySessionId).mockReset().mockResolvedValue(host)
 })
 
+const sessionCookie = 'session=test-token'
+
 /** A create request from a logged-in user. */
-const postEvent = () => request(app).post('/api/events').set('Cookie', 'session=test-token')
+const postEvent = () => request(app).post('/api/events').set('Cookie', sessionCookie)
 
 describe('POST /api/events', () => {
   it('rejects a request without a session cookie', async () => {
@@ -352,10 +354,34 @@ describe('GET /api/events/:id', () => {
 })
 
 describe('PATCH /api/events/:id', () => {
+  it('rejects a request without a session', async () => {
+    const res = await request(app).patch(`/api/events/${sample.id}`).send({ title: 'Kickoff v2' })
+    expect(res.status).toBe(401)
+    expect(findEventById).not.toHaveBeenCalled()
+    expect(updateEvent).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an event hosted by someone else', '11111111-1111-4111-8111-111111111111'],
+    ['an event from before logins, which has no host', null],
+  ])('refuses to change %s', async (_name, hostId) => {
+    vi.mocked(findEventById).mockResolvedValue({ ...sample, hostId })
+    const res = await request(app)
+      .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
+      .send({ title: 'Kickoff v2' })
+    expect(res.status).toBe(403)
+    expect(res.body).toEqual({ error: 'Only the host of this event can do that' })
+    expect(updateEvent).not.toHaveBeenCalled()
+  })
+
   it('updates only the fields that were sent', async () => {
     vi.mocked(findEventById).mockResolvedValue(sample)
     vi.mocked(updateEvent).mockResolvedValue({ ...sample, title: 'Kickoff v2' })
-    const res = await request(app).patch(`/api/events/${sample.id}`).send({ title: ' Kickoff v2 ' })
+    const res = await request(app)
+      .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
+      .send({ title: ' Kickoff v2 ' })
     expect(res.status).toBe(200)
     expect(res.body.title).toBe('Kickoff v2')
     expect(updateEvent).toHaveBeenCalledWith(sample.id, { title: 'Kickoff v2' })
@@ -367,6 +393,7 @@ describe('PATCH /api/events/:id', () => {
     vi.mocked(updateEvent).mockResolvedValue(sample)
     const res = await request(app)
       .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
       .send({ location: null, endsAt: null })
     expect(res.status).toBe(200)
     expect(updateEvent).toHaveBeenCalledWith(sample.id, { location: null, endsAt: null })
@@ -377,6 +404,7 @@ describe('PATCH /api/events/:id', () => {
     vi.mocked(updateEvent).mockResolvedValue(sample)
     const res = await request(app)
       .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
       .send({
         eventType: 'Workshop',
         guestEmails: ['Grace@Example.com'],
@@ -404,7 +432,10 @@ describe('PATCH /api/events/:id', () => {
       admissionPrice: null,
       guestEmails: [],
     }
-    const res = await request(app).patch(`/api/events/${sample.id}`).send(cleared)
+    const res = await request(app)
+      .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
+      .send(cleared)
     expect(res.status).toBe(200)
     expect(updateEvent).toHaveBeenCalledWith(sample.id, cleared)
   })
@@ -412,6 +443,7 @@ describe('PATCH /api/events/:id', () => {
   it('rejects null for the guest list and the boolean settings', async () => {
     const res = await request(app)
       .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
       .send({ guestEmails: null, isPublic: null, rsvpEnabled: null })
     expect(res.status).toBe(400)
     expect(res.body.details).toEqual([
@@ -427,6 +459,7 @@ describe('PATCH /api/events/:id', () => {
     vi.mocked(updateEvent).mockResolvedValue(sample)
     await request(app)
       .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
       .send({ title: 'Kickoff', id: 'other', shareToken: 'mine' })
     expect(updateEvent).toHaveBeenCalledWith(sample.id, { title: 'Kickoff' })
   })
@@ -434,6 +467,7 @@ describe('PATCH /api/events/:id', () => {
   it('rejects an empty title, a cleared startsAt and invalid dates', async () => {
     const res = await request(app)
       .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
       .send({ title: '  ', startsAt: null, endsAt: 'later' })
     expect(res.status).toBe(400)
     expect(res.body.details).toEqual([
@@ -445,7 +479,10 @@ describe('PATCH /api/events/:id', () => {
   })
 
   it('rejects a body with no updatable fields', async () => {
-    const res = await request(app).patch(`/api/events/${sample.id}`).send({ shareToken: 'mine' })
+    const res = await request(app)
+      .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
+      .send({ shareToken: 'mine' })
     expect(res.status).toBe(400)
     expect(findEventById).not.toHaveBeenCalled()
     expect(updateEvent).not.toHaveBeenCalled()
@@ -455,6 +492,7 @@ describe('PATCH /api/events/:id', () => {
     vi.mocked(findEventById).mockResolvedValue(sample)
     const res = await request(app)
       .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
       .send({ endsAt: '2026-12-01T17:00:00Z' })
     expect(res.status).toBe(400)
     expect(res.body.details).toContain('endsAt must be after startsAt')
@@ -468,6 +506,7 @@ describe('PATCH /api/events/:id', () => {
     })
     const res = await request(app)
       .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
       .send({ startsAt: '2026-12-01T21:00:00Z' })
     expect(res.status).toBe(400)
     expect(res.body.details).toContain('endsAt must be after startsAt')
@@ -476,13 +515,19 @@ describe('PATCH /api/events/:id', () => {
 
   it('returns 404 for an unknown id', async () => {
     vi.mocked(findEventById).mockResolvedValue(undefined)
-    const res = await request(app).patch(`/api/events/${sample.id}`).send({ title: 'Kickoff' })
+    const res = await request(app)
+      .patch(`/api/events/${sample.id}`)
+      .set('Cookie', sessionCookie)
+      .send({ title: 'Kickoff' })
     expect(res.status).toBe(404)
     expect(updateEvent).not.toHaveBeenCalled()
   })
 
   it('rejects an id that is not a UUID', async () => {
-    const res = await request(app).patch('/api/events/not-a-uuid').send({ title: 'Kickoff' })
+    const res = await request(app)
+      .patch('/api/events/not-a-uuid')
+      .set('Cookie', sessionCookie)
+      .send({ title: 'Kickoff' })
     expect(res.status).toBe(400)
     expect(res.body.details).toEqual(['id must be a valid UUID'])
     expect(findEventById).not.toHaveBeenCalled()
@@ -490,23 +535,40 @@ describe('PATCH /api/events/:id', () => {
 })
 
 describe('DELETE /api/events/:id', () => {
-  it('deletes the event and returns 204', async () => {
-    vi.mocked(deleteEvent).mockResolvedValue(true)
+  it('rejects a request without a session', async () => {
     const res = await request(app).delete(`/api/events/${sample.id}`)
+    expect(res.status).toBe(401)
+    expect(deleteEvent).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an event hosted by someone else', '11111111-1111-4111-8111-111111111111'],
+    ['an event from before logins, which has no host', null],
+  ])('refuses to delete %s', async (_name, hostId) => {
+    vi.mocked(findEventById).mockResolvedValue({ ...sample, hostId })
+    const res = await request(app).delete(`/api/events/${sample.id}`).set('Cookie', sessionCookie)
+    expect(res.status).toBe(403)
+    expect(deleteEvent).not.toHaveBeenCalled()
+  })
+
+  it('deletes the event and returns 204', async () => {
+    vi.mocked(findEventById).mockResolvedValue(sample)
+    vi.mocked(deleteEvent).mockResolvedValue(true)
+    const res = await request(app).delete(`/api/events/${sample.id}`).set('Cookie', sessionCookie)
     expect(res.status).toBe(204)
     expect(res.body).toEqual({})
     expect(deleteEvent).toHaveBeenCalledWith(sample.id)
   })
 
   it('returns 404 for an unknown id', async () => {
-    vi.mocked(deleteEvent).mockResolvedValue(false)
-    const res = await request(app).delete(`/api/events/${sample.id}`)
+    vi.mocked(findEventById).mockResolvedValue(undefined)
+    const res = await request(app).delete(`/api/events/${sample.id}`).set('Cookie', sessionCookie)
     expect(res.status).toBe(404)
     expect(res.body.error).toBe('Event not found')
   })
 
   it('rejects an id that is not a UUID without querying', async () => {
-    const res = await request(app).delete('/api/events/not-a-uuid')
+    const res = await request(app).delete('/api/events/not-a-uuid').set('Cookie', sessionCookie)
     expect(res.status).toBe(400)
     expect(deleteEvent).not.toHaveBeenCalled()
   })
