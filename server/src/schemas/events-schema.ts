@@ -32,7 +32,7 @@ const nullableText = (name: string) =>
     .transform((value) => value || null)
     .nullable()
 
-const bodyError = { error: 'Request body must be a JSON object' }
+export const bodyError = { error: 'Request body must be a JSON object' }
 
 const title = z
   .string({ error: message('title', 'title must be a string') })
@@ -59,17 +59,6 @@ const imageUrl = z.preprocess(
     .max(2048, { error: 'imageUrl must be at most 2048 characters' })
     .nullable(),
 )
-
-const guestEmail = z
-  .string({ error: 'guestEmails must be an array of email addresses' })
-  .trim()
-  .toLowerCase()
-  .pipe(z.email({ error: (issue) => `guestEmails: "${issue.input}" is not a valid email address` }))
-
-/** Trimmed, lower-cased and de-duplicated. On update the whole list is replaced. */
-const guestEmails = z
-  .array(guestEmail, { error: 'guestEmails must be an array of email addresses' })
-  .transform((emails) => [...new Set(emails)])
 
 // Upper bounds match the columns (integer, numeric(10, 2)) so an oversized value is a 400
 // rather than a database error.
@@ -103,7 +92,8 @@ export const shareTokenParamsSchema = z.object({
   shareToken: z.string().min(1),
 })
 
-// Unknown keys (id, shareToken, timestamps) are stripped, so a client cannot set them. Fields
+// Unknown keys (id, shareToken, timestamps) are stripped, so a client cannot set them. Guests are
+// not part of the event: they are invited through the invitations endpoints. Fields
 // left out of a create fall back to the column defaults in db/schema.ts.
 export const createEventSchema = z
   .object(
@@ -115,7 +105,6 @@ export const createEventSchema = z
       location: location.optional(),
       eventType: eventType.optional(),
       imageUrl: imageUrl.optional(),
-      guestEmails: guestEmails.optional(),
       maxGuests: maxGuests.optional(),
       admissionPrice: admissionPrice.optional(),
       isPublic: isPublic.optional(),
@@ -136,7 +125,6 @@ const updatableFields = {
   location,
   eventType,
   imageUrl,
-  guestEmails,
   maxGuests,
   admissionPrice,
   isPublic,
@@ -145,7 +133,7 @@ const updatableFields = {
 
 /**
  * Partial update: a key left out is not touched. Nullable fields can be cleared with null;
- * `title`, `startsAt`, `guestEmails` and the two booleans are required columns, so they can be
+ * `title`, `startsAt` and the two booleans are required columns, so they can be
  * changed but not set to null. The endsAt/startsAt order is checked in the service, where the
  * stored values are known.
  */

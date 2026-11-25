@@ -6,6 +6,7 @@ import { errorHandler, notFound } from './middleware/error-handler.js'
 import { authRouter } from './routes/auth.js'
 import { eventsRouter } from './routes/events.js'
 import { healthRouter } from './routes/health.js'
+import { eventInvitationsRouter } from './routes/invitations.js'
 
 export const app = express()
 
@@ -19,6 +20,7 @@ app.get('/api', (_req, res) => {
 
 app.use('/api/health', healthRouter)
 app.use('/api/auth', authRouter)
+app.use('/api/events/:id/invitations', eventInvitationsRouter)
 app.use('/api/events', eventsRouter)
 
 app.use(notFound)
