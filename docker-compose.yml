@@ -25,6 +25,10 @@ services:
       PORT: 3000
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-app}
+      # No value: passed through from the root .env when set there, otherwise left unset so
+      # that a server/.env (read by the dev container) is not overridden by an empty string.
+      GITHUB_CLIENT_ID:
+      GITHUB_CLIENT_SECRET:
     ports:
       - '${SERVER_PORT:-3000}:3000'
     depends_on:

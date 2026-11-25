@@ -185,6 +185,7 @@ There is no deployment step yet. When the team picks a host, a deploy job goes a
 
 - **macOS / Linux (`make`) and production images:** Docker reads the root `.env`; copy [.env.example](./.env.example) to change ports or database credentials. Every value has a default.
 - **Windows (`npm run dev`):** the natively running server reads `server/.env`; copy `server/.env.example` to change `PORT`, `CLIENT_ORIGIN` (allowed CORS origin) or `DATABASE_URL`. Defaults work out of the box.
+- **Login with GitHub:** needs `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`. Put them in `server/.env` for development (`make dev` and `npm run dev` both read it) or in the root `.env` for the production images (`make up`). The comments in [server/.env.example](./server/.env.example) say where to create the OAuth app and which callback URL to register. Restart the server after changing them. Without them everything else still runs; only the login button fails (`?authError=not_configured`).
 
 ## Our Team
 
