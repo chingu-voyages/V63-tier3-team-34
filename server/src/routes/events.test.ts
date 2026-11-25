@@ -43,7 +43,6 @@ const sample: Event = {
   endsAt: null,
   eventType: null,
   imageUrl: null,
-  guestEmails: [],
   maxGuests: null,
   admissionPrice: null,
   isPublic: false,
@@ -126,14 +125,13 @@ describe('POST /api/events', () => {
     })
   })
 
-  it('accepts the event type, image, guest and settings fields', async () => {
+  it('accepts the event type, image, capacity and settings fields', async () => {
     vi.mocked(createEvent).mockResolvedValue(sample)
     const res = await postEvent().send({
       title: 'Kickoff',
       startsAt: '2026-12-01T18:00:00Z',
       eventType: ' Team Building ',
       imageUrl: 'https://images.example.com/kickoff.png',
-      guestEmails: [' Ada@Example.com ', 'ada@example.com', 'grace@example.com'],
       maxGuests: 50,
       admissionPrice: 19.99,
       isPublic: true,
@@ -146,7 +144,6 @@ describe('POST /api/events', () => {
       startsAt: new Date('2026-12-01T18:00:00Z'),
       eventType: 'Team Building',
       imageUrl: 'https://images.example.com/kickoff.png',
-      guestEmails: ['ada@example.com', 'grace@example.com'],
       maxGuests: 50,
       admissionPrice: 19.99,
       isPublic: true,
@@ -176,13 +173,12 @@ describe('POST /api/events', () => {
     })
   })
 
-  it('rejects invalid event type, image, guest and settings fields', async () => {
+  it('rejects invalid event type, image, capacity and settings fields', async () => {
     const res = await postEvent().send({
       title: 'Kickoff',
       startsAt: '2026-12-01T18:00:00Z',
       eventType: 'x'.repeat(51),
       imageUrl: 'blob:http://localhost:5173/3f1c',
-      guestEmails: ['ada@example.com', 'not-an-email'],
       maxGuests: 0,
       admissionPrice: 9.999,
       isPublic: 'yes',
@@ -192,7 +188,6 @@ describe('POST /api/events', () => {
     expect(res.body.details).toEqual([
       'eventType must be at most 50 characters',
       'imageUrl must be an http or https URL',
-      'guestEmails: "not-an-email" is not a valid email address',
       'maxGuests must be a whole number of at least 1',
       'admissionPrice must be a number of at least 0 with at most 2 decimal places',
       'isPublic must be true or false',
@@ -228,16 +223,6 @@ describe('POST /api/events', () => {
       'admissionPrice must be a number of at least 0 with at most 2 decimal places',
     ],
     [
-      'guestEmails as a string',
-      { guestEmails: 'ada@example.com' },
-      'guestEmails must be an array of email addresses',
-    ],
-    [
-      'a non-string guest email',
-      { guestEmails: [5] },
-      'guestEmails must be an array of email addresses',
-    ],
-    [
       'a javascript: imageUrl',
       { imageUrl: 'javascript:alert(1)' },
       'imageUrl must be an http or https URL',
@@ -266,6 +251,18 @@ describe('POST /api/events', () => {
       admissionPrice: 0,
     })
     expect(res.status).toBe(201)
+  })
+
+  it('ignores guestEmails, which were replaced by invitations', async () => {
+    vi.mocked(createEvent).mockResolvedValue(sample)
+    const res = await postEvent().send({
+      title: 'Kickoff',
+      startsAt: '2026-12-01T18:00:00Z',
+      guestEmails: ['ada@example.com'],
+    })
+    expect(res.status).toBe(201)
+    expect(vi.mocked(createEvent).mock.calls[0]![0]).not.toHaveProperty('guestEmails')
+    expect(res.body).not.toHaveProperty('guestEmails')
   })
 
   it('ignores a client-supplied shareToken', async () => {
@@ -399,7 +396,7 @@ describe('PATCH /api/events/:id', () => {
     expect(updateEvent).toHaveBeenCalledWith(sample.id, { location: null, endsAt: null })
   })
 
-  it('updates the event type, image, guest and settings fields', async () => {
+  it('updates the event type, capacity and settings fields', async () => {
     vi.mocked(findEventById).mockResolvedValue(sample)
     vi.mocked(updateEvent).mockResolvedValue(sample)
     const res = await request(app)
@@ -407,7 +404,6 @@ describe('PATCH /api/events/:id', () => {
       .set('Cookie', sessionCookie)
       .send({
         eventType: 'Workshop',
-        guestEmails: ['Grace@Example.com'],
         maxGuests: 20,
         isPublic: true,
         rsvpEnabled: false,
@@ -415,14 +411,13 @@ describe('PATCH /api/events/:id', () => {
     expect(res.status).toBe(200)
     expect(updateEvent).toHaveBeenCalledWith(sample.id, {
       eventType: 'Workshop',
-      guestEmails: ['grace@example.com'],
       maxGuests: 20,
       isPublic: true,
       rsvpEnabled: false,
     })
   })
 
-  it('clears the nullable new fields with null and the guest list with []', async () => {
+  it('clears the nullable new fields with null', async () => {
     vi.mocked(findEventById).mockResolvedValue(sample)
     vi.mocked(updateEvent).mockResolvedValue(sample)
     const cleared = {
@@ -430,7 +425,6 @@ describe('PATCH /api/events/:id', () => {
       imageUrl: null,
       maxGuests: null,
       admissionPrice: null,
-      guestEmails: [],
     }
     const res = await request(app)
       .patch(`/api/events/${sample.id}`)
@@ -440,14 +434,13 @@ describe('PATCH /api/events/:id', () => {
     expect(updateEvent).toHaveBeenCalledWith(sample.id, cleared)
   })
 
-  it('rejects null for the guest list and the boolean settings', async () => {
+  it('rejects null for the boolean settings', async () => {
     const res = await request(app)
       .patch(`/api/events/${sample.id}`)
       .set('Cookie', sessionCookie)
-      .send({ guestEmails: null, isPublic: null, rsvpEnabled: null })
+      .send({ isPublic: null, rsvpEnabled: null })
     expect(res.status).toBe(400)
     expect(res.body.details).toEqual([
-      'guestEmails must be an array of email addresses',
       'isPublic must be true or false',
       'rsvpEnabled must be true or false',
     ])

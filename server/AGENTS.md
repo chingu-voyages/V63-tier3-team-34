@@ -13,18 +13,21 @@ If you are an AI assistant reading this: treat it as the complete API. Do not us
 
 ## Endpoints at a glance
 
-| Method   | Path                            | What it does                    | Success        |
-| -------- | ------------------------------- | ------------------------------- | -------------- |
-| `GET`    | `/api`                          | Confirm the API is reachable    | `200`          |
-| `GET`    | `/api/health`                   | Check that the server is up     | `200`          |
-| `GET`    | `/api/auth/github`              | Start a GitHub login (a link)   | `302` redirect |
-| `GET`    | `/api/auth/me`                  | Get the logged-in user, if any  | `200` + user   |
-| `POST`   | `/api/auth/logout`              | Log out                         | `204`, no body |
-| `POST`   | `/api/events`                   | Create an event (login needed)  | `201` + event  |
-| `GET`    | `/api/events/:id`               | Get one event by its id         | `200` + event  |
-| `GET`    | `/api/events/share/:shareToken` | Get one event by its share code | `200` + event  |
-| `PATCH`  | `/api/events/:id`               | Change an event (host only)     | `200` + event  |
-| `DELETE` | `/api/events/:id`               | Delete an event (host only)     | `204`, no body |
+| Method   | Path                                        | What it does                       | Success             |
+| -------- | ------------------------------------------- | ---------------------------------- | ------------------- |
+| `GET`    | `/api`                                      | Confirm the API is reachable       | `200`               |
+| `GET`    | `/api/health`                               | Check that the server is up        | `200`               |
+| `GET`    | `/api/auth/github`                          | Start a GitHub login (a link)      | `302` redirect      |
+| `GET`    | `/api/auth/me`                              | Get the logged-in user, if any     | `200` + user        |
+| `POST`   | `/api/auth/logout`                          | Log out                            | `204`, no body      |
+| `POST`   | `/api/events`                               | Create an event (login needed)     | `201` + event       |
+| `GET`    | `/api/events/:id`                           | Get one event by its id            | `200` + event       |
+| `GET`    | `/api/events/share/:shareToken`             | Get one event by its share code    | `200` + event       |
+| `PATCH`  | `/api/events/:id`                           | Change an event (host only)        | `200` + event       |
+| `DELETE` | `/api/events/:id`                           | Delete an event (host only)        | `204`, no body      |
+| `POST`   | `/api/events/:id/invitations`               | Invite guests (host only)          | `201` + invitations |
+| `GET`    | `/api/events/:id/invitations`               | List an event's guests (host only) | `200` + invitations |
+| `DELETE` | `/api/events/:id/invitations/:invitationId` | Uninvite a guest (host only)       | `204`, no body      |
 
 Things that do **not** exist:
 
@@ -35,7 +38,9 @@ Things that do **not** exist:
 - No `PUT`. Updates use `PATCH`.
 - No pagination, search, filtering or sorting.
 - No image upload. An event stores a link to an image (`imageUrl`), not the image file.
-- No invitation emails and no RSVP endpoints. `guestEmails`, `isPublic` and `rsvpEnabled` are only stored and returned; the server does nothing else with them yet.
+- No `guestEmails` on an event. Guests are invited through the invitations endpoints; a `guestEmails` field sent when creating or changing an event is ignored.
+- No invitation emails: inviting a guest only stores the invitation. The host has to pass on the guest's link.
+- No way for a guest to answer an invitation yet, so every invitation stays `pending`. `isPublic` and `rsvpEnabled` are only stored and returned.
 
 ## Logging in
 
@@ -75,14 +80,14 @@ Details:
 }
 ```
 
-| Field       | Type             | Notes                                                                         |
-| ----------- | ---------------- | ----------------------------------------------------------------------------- |
-| `id`        | string (UUID)    | Set by the server. The same value as `hostId` on the events this user created |
-| `email`     | string           | Lower-cased and verified by GitHub, so it can be compared with `guestEmails`  |
-| `firstName` | string           | Never empty. The GitHub username when the GitHub profile has no name          |
-| `lastName`  | string           | `""` when the provider only knows one name. Never `null`                      |
-| `avatarUrl` | string or `null` | Profile picture hosted by GitHub                                              |
-| `createdAt` | string           | ISO 8601 date-time in UTC of the first login                                  |
+| Field       | Type             | Notes                                                                                       |
+| ----------- | ---------------- | ------------------------------------------------------------------------------------------- |
+| `id`        | string (UUID)    | Set by the server. The same value as `hostId` on the events this user created               |
+| `email`     | string           | Lower-cased and verified by GitHub, so it can be compared with the `email` of an invitation |
+| `firstName` | string           | Never empty. The GitHub username when the GitHub profile has no name                        |
+| `lastName`  | string           | `""` when the provider only knows one name. Never `null`                                    |
+| `avatarUrl` | string or `null` | Profile picture hosted by GitHub                                                            |
+| `createdAt` | string           | ISO 8601 date-time in UTC of the first login                                                |
 
 The name and picture are copied from GitHub at the first login and not refreshed afterwards. There is no `role` field: whether someone is the host of an event is `event.hostId === user.id`.
 
@@ -102,7 +107,6 @@ Every endpoint that returns an event returns this shape:
   "endsAt": "2026-12-01T19:30:00.000Z",
   "eventType": "Team Building",
   "imageUrl": "https://images.example.com/kickoff.png",
-  "guestEmails": ["ada@example.com", "grace@example.com"],
   "maxGuests": 50,
   "admissionPrice": 19.99,
   "isPublic": false,
@@ -124,7 +128,6 @@ Every endpoint that returns an event returns this shape:
 | `endsAt`         | string or `null` | ISO 8601 date-time in UTC                                                                                                                     |
 | `eventType`      | string or `null` | Free text, e.g. `"Team Building"`. The server does not restrict the values                                                                    |
 | `imageUrl`       | string or `null` | Link to an image hosted somewhere else                                                                                                        |
-| `guestEmails`    | array of strings | Invited email addresses, lower-cased, no duplicates. `[]` when nobody is invited                                                              |
 | `maxGuests`      | number or `null` | Whole number, 1 or more. `null` means no limit                                                                                                |
 | `admissionPrice` | number or `null` | 0 or more, at most 2 decimal places. No currency is stored. `null` means not set                                                              |
 | `isPublic`       | boolean          | `false` unless set                                                                                                                            |
@@ -155,7 +158,6 @@ export interface Event {
   endsAt: string | null
   eventType: string | null
   imageUrl: string | null
-  guestEmails: string[]
   maxGuests: number | null
   admissionPrice: number | null
   isPublic: boolean
@@ -172,7 +174,6 @@ export interface CreateEventInput {
   location?: string | null
   eventType?: string | null
   imageUrl?: string | null
-  guestEmails?: string[]
   maxGuests?: number | null
   admissionPrice?: number | null
   isPublic?: boolean
@@ -188,7 +189,6 @@ export interface UpdateEventInput {
   location?: string | null
   eventType?: string | null
   imageUrl?: string | null
-  guestEmails?: string[]
   maxGuests?: number | null
   admissionPrice?: number | null
   isPublic?: boolean
@@ -201,9 +201,64 @@ export interface ApiError {
 }
 ```
 
+## The invitation object
+
+An invitation is one guest invited to one event. Guests are known by their email address and do not need an account.
+
+```json
+{
+  "id": "7a1f6a52-4b53-4b0e-9a3c-0d6c1f2b9e10",
+  "eventId": "ba34b75b-bd29-4ed8-944a-31ec5d690cd8",
+  "email": "grace@example.com",
+  "firstName": "Grace",
+  "lastName": "Hopper",
+  "status": "pending",
+  "token": "kq3ZcVbnT0O1p9u4mYx2Hg",
+  "respondedAt": null,
+  "createdAt": "2026-11-25T07:08:57.482Z",
+  "updatedAt": "2026-11-25T07:08:57.482Z"
+}
+```
+
+| Field         | Type             | Notes                                                                                                                                         |
+| ------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`          | string (UUID)    | Set by the server. Used in the URL to uninvite the guest                                                                                      |
+| `eventId`     | string (UUID)    | The event the guest is invited to                                                                                                             |
+| `email`       | string           | Lower-cased. A guest can be invited to the same event only once                                                                               |
+| `firstName`   | string or `null` | Optional; `null` when the host did not give a name                                                                                            |
+| `lastName`    | string or `null` | Optional; `null` when the host did not give a name                                                                                            |
+| `status`      | string           | `"pending"`, `"accepted"` or `"declined"`. Always `"pending"` for now                                                                         |
+| `token`       | string           | Set by the server. A secret that identifies this guest, meant for the guest's personal link. Treat it like a password for that one invitation |
+| `respondedAt` | string or `null` | ISO 8601 date-time in UTC of the guest's answer. `null` while `pending`                                                                       |
+| `createdAt`   | string           | ISO 8601 date-time in UTC. Set by the server                                                                                                  |
+| `updatedAt`   | string           | ISO 8601 date-time in UTC                                                                                                                     |
+
+```ts
+export interface Invitation {
+  id: string
+  eventId: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  status: 'pending' | 'accepted' | 'declined'
+  token: string
+  respondedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GuestInput {
+  email: string
+  firstName?: string | null
+  lastName?: string | null
+}
+```
+
+Invitations are deleted together with their event.
+
 ## Rules for input fields
 
-These apply to both `POST` and `PATCH`.
+These apply to both `POST` and `PATCH` on events.
 
 - **Dates** (`startsAt`, `endsAt`) must be ISO 8601 date-times that include seconds and a timezone: `2026-12-01T18:00:00Z` or `2026-12-01T13:00:00-05:00`. In JavaScript, `new Date(value).toISOString()` always produces a valid value. These are rejected: `2026-12-01` (no time), `2026-12-01T18:00:00` (no timezone), `2026-12-01T18:00Z` (no seconds), and numbers.
 - **`endsAt` cannot be earlier than `startsAt`.**
@@ -211,12 +266,11 @@ These apply to both `POST` and `PATCH`.
 - **`title`** cannot be empty or only spaces.
 - **`eventType`** is free text of at most 50 characters. The server does not check it against a list.
 - **`imageUrl`** must be a full `http://` or `https://` link of at most 2048 characters. The server does not accept image files. A `blob:` URL from `URL.createObjectURL` or a `data:` URL is rejected: upload the image to a host first, then send the link it gives you.
-- **`guestEmails`** must be an array of email addresses, for example `["ada@example.com"]`, not one comma-separated string. Addresses are trimmed, lower-cased and de-duplicated. On update, the array you send replaces the whole list; send `[]` to remove everyone.
 - **`maxGuests`** must be a JSON number: a whole number of 1 or more. The string `"50"` is rejected, so convert form values with `Number(value)`.
 - **`admissionPrice`** must be a JSON number of 0 or more with at most 2 decimal places, such as `19.99`. The string `"19.99"` is rejected.
 - **`isPublic`, `rsvpEnabled`** must be `true` or `false`. The strings `"true"` and `"false"` are rejected.
 - **Optional fields with no value:** for `description`, `location`, `endsAt`, `eventType`, `imageUrl`, `maxGuests` and `admissionPrice`, `null` and `""` both mean "no value" and are stored as `null`.
-- **Defaults on create:** a field you leave out is stored as `null`, except `guestEmails` (`[]`), `isPublic` (`false`) and `rsvpEnabled` (`true`).
+- **Defaults on create:** a field you leave out is stored as `null`, except `isPublic` (`false`) and `rsvpEnabled` (`true`).
 - **Unknown fields are ignored.** You cannot set `id`, `shareToken`, `hostId`, `createdAt` or `updatedAt`; sending them has no effect. `hostId` is always the logged-in user.
 
 ## Errors
@@ -230,6 +284,7 @@ Every error response is JSON with an `error` string. Validation errors also have
 | `401`  | The endpoint needs a login and there is no valid session | `{ "error": "Authentication required" }`                      |
 | `403`  | The user is logged in but is not the host of the event   | `{ "error": "Only the host of this event can do that" }`      |
 | `404`  | No event has that id or share token                      | `{ "error": "Event not found" }`                              |
+| `404`  | The event has no invitation with that id                 | `{ "error": "Invitation not found" }`                         |
 | `404`  | The URL or method is not an endpoint                     | `{ "error": "Route not found: GET /api/whatever" }`           |
 | `500`  | Something broke on the server                            | `{ "error": "Internal server error" }`                        |
 
@@ -242,14 +297,16 @@ Validation messages you can get in `details`:
 - `description must be a string`, `location must be a string`, `eventType must be a string`
 - `eventType must be at most 50 characters`
 - `imageUrl must be an http or https URL`, `imageUrl must be at most 2048 characters`
-- `guestEmails must be an array of email addresses`
-- `guestEmails: "not-an-email" is not a valid email address`
 - `maxGuests must be a whole number of at least 1`
 - `admissionPrice must be a number of at least 0 with at most 2 decimal places`
 - `isPublic must be true or false`, `rsvpEnabled must be true or false`
-- `id must be a valid UUID`
+- `id must be a valid UUID`, `invitationId must be a valid UUID`
+- `guests must be an array of 1 to 100 objects like { "email": "ada@example.com" }`
+- `guests: every guest needs an email`
+- `guests: "not-an-email" is not a valid email address`
+- `firstName must be a string`, `firstName must be at most 100 characters` (same for `lastName`)
 - `provider must be one of github`
-- `at least one of title, startsAt, endsAt, description, location, eventType, imageUrl, guestEmails, maxGuests, admissionPrice, isPublic, rsvpEnabled is required` (`PATCH` only)
+- `at least one of title, startsAt, endsAt, description, location, eventType, imageUrl, maxGuests, admissionPrice, isPublic, rsvpEnabled is required` (`PATCH` only)
 - `Request body must be a JSON object`
 
 ## Endpoint details
@@ -332,7 +389,6 @@ Request body:
 | `location`       | no       | string or `null`            | `null`      |
 | `eventType`      | no       | string or `null`            | `null`      |
 | `imageUrl`       | no       | http(s) URL or `null`       | `null`      |
-| `guestEmails`    | no       | array of email strings      | `[]`        |
 | `maxGuests`      | no       | whole number ≥ 1, or `null` | `null`      |
 | `admissionPrice` | no       | number ≥ 0, or `null`       | `null`      |
 | `isPublic`       | no       | boolean                     | `false`     |
@@ -352,7 +408,6 @@ Content-Type: application/json
   "endsAt": "2026-12-01T19:30:00Z",
   "eventType": "Team Building",
   "imageUrl": "https://images.example.com/kickoff.png",
-  "guestEmails": ["ada@example.com", "grace@example.com"],
   "maxGuests": 50,
   "admissionPrice": 19.99,
   "isPublic": false,
@@ -410,7 +465,6 @@ Changes some fields of an event. **Host only:** needs a login, and the logged-in
 - The body must contain at least one field from the create table above.
 - `description`, `location`, `endsAt`, `eventType`, `imageUrl`, `maxGuests` and `admissionPrice` can be cleared by sending `null`.
 - `title`, `startsAt`, `isPublic` and `rsvpEnabled` can be changed but not set to `null`.
-- `guestEmails` replaces the whole list. To add one guest, send the existing list plus the new address; to remove everyone, send `[]`.
 - If you send only one of the two dates, it is checked against the other one already stored. For example, moving `startsAt` to after the stored `endsAt` is rejected; send both dates together to move the whole event.
 
 Example request, renaming an event and removing its location:
@@ -439,6 +493,79 @@ Deletes an event permanently. **Host only:** needs a login, and the logged-in us
 Response `204` with an **empty body**. Do not call `response.json()` on it.
 
 Errors: `401` if nobody is logged in, `400` if `:id` is not a UUID, `404` if no event has that id (including one that was already deleted), `403` if the logged-in user is not the host.
+
+### `POST /api/events/:id/invitations`
+
+Invites guests to an event. **Host only.** No email is sent: the invitation is only stored.
+
+- `:id` is the event's id (a UUID).
+
+Request body:
+
+```json
+{
+  "guests": [
+    { "email": "grace@example.com", "firstName": "Grace", "lastName": "Hopper" },
+    { "email": "alan@example.com" }
+  ]
+}
+```
+
+- `guests` must be an array of 1 to 100 objects, not an array of strings and not one comma-separated string.
+- `email` is required for every guest. It is trimmed and lower-cased.
+- `firstName` and `lastName` are optional, trimmed and at most 100 characters; `""` and `null` both mean "no name".
+- An email that appears twice in the request counts once (the first entry wins).
+- A guest who is already invited to the event is left untouched and reported in `alreadyInvited`. This is not an error.
+
+Response `201`:
+
+```json
+{
+  "invitations": [
+    {
+      "id": "7a1f6a52-4b53-4b0e-9a3c-0d6c1f2b9e10",
+      "eventId": "ba34b75b-bd29-4ed8-944a-31ec5d690cd8",
+      "email": "grace@example.com",
+      "firstName": "Grace",
+      "lastName": "Hopper",
+      "status": "pending",
+      "token": "kq3ZcVbnT0O1p9u4mYx2Hg",
+      "respondedAt": null,
+      "createdAt": "2026-11-25T07:08:57.482Z",
+      "updatedAt": "2026-11-25T07:08:57.482Z"
+    }
+  ],
+  "alreadyInvited": ["alan@example.com"]
+}
+```
+
+`invitations` holds only the invitations this request created. `alreadyInvited` holds the emails that were skipped. Either can be empty.
+
+Errors: `401` if nobody is logged in, `400` if `:id` is not a UUID or validation fails, `404` if no event has that id, `403` if the logged-in user is not the host.
+
+### `GET /api/events/:id/invitations`
+
+Returns everyone invited to an event, oldest invitation first. **Host only**, because the list contains email addresses.
+
+Response `200`:
+
+```json
+{ "invitations": [] }
+```
+
+`invitations` is an array of invitation objects; it is empty when nobody is invited. To show counts, count by `status` on the client.
+
+Errors: `401` if nobody is logged in, `400` if `:id` is not a UUID, `404` if no event has that id, `403` if the logged-in user is not the host.
+
+### `DELETE /api/events/:id/invitations/:invitationId`
+
+Uninvites a guest. **Host only.** The guest's link stops working.
+
+- `:invitationId` is the `id` of the invitation, not the guest's email or `token`.
+
+Response `204` with an **empty body**.
+
+Errors: `401` if nobody is logged in, `400` if either id is not a UUID, `404` if the event does not exist or has no invitation with that id, `403` if the logged-in user is not the host.
 
 ## Example client code
 
@@ -481,6 +608,19 @@ export const updateEvent = (id: string, input: UpdateEventInput) =>
   api<Event>(`/events/${id}`, { method: 'PATCH', body: JSON.stringify(input) })
 
 export const deleteEvent = (id: string) => api<void>(`/events/${id}`, { method: 'DELETE' })
+
+// Host only. Guests who were already invited come back in alreadyInvited, not as an error.
+export const inviteGuests = (eventId: string, guests: GuestInput[]) =>
+  api<{ invitations: Invitation[]; alreadyInvited: string[] }>(`/events/${eventId}/invitations`, {
+    method: 'POST',
+    body: JSON.stringify({ guests }),
+  })
+
+export const getInvitations = async (eventId: string) =>
+  (await api<{ invitations: Invitation[] }>(`/events/${eventId}/invitations`)).invitations
+
+export const removeInvitation = (eventId: string, invitationId: string) =>
+  api<void>(`/events/${eventId}/invitations/${invitationId}`, { method: 'DELETE' })
 ```
 
 Form inputs give you strings, so convert them before sending:
@@ -489,11 +629,12 @@ Form inputs give you strings, so convert them before sending:
 // date = "2026-12-01" from <input type="date">, time = "18:00" from <input type="time">
 const startsAt = new Date(`${date}T${time}`).toISOString()
 
-// "ada@example.com, grace@example.com" from a textarea
-const guestEmails = guestText
+// "ada@example.com, grace@example.com" from a textarea, for inviteGuests()
+const guests = guestText
   .split(',')
   .map((email) => email.trim())
   .filter(Boolean)
+  .map((email) => ({ email }))
 
 // "" or "50" from <input type="number">
 const maxGuests = capacityText === '' ? null : Number(capacityText)
@@ -505,28 +646,28 @@ const isPublic = publicCheckbox.checked
 
 How the create-event form maps to the API:
 
-| Form field             | API field                         |
-| ---------------------- | --------------------------------- |
-| Event Title            | `title`                           |
-| Description            | `description`                     |
-| Date + Time            | `startsAt` (combined, see above)  |
-| Location               | `location`                        |
-| Event Type             | `eventType`                       |
-| Image                  | `imageUrl` (a link, not the file) |
-| Invite Guests          | `guestEmails`                     |
-| Maximum Guest Capacity | `maxGuests`                       |
-| Admission Price        | `admissionPrice`                  |
-| Public Event           | `isPublic`                        |
-| Guest Registration     | `rsvpEnabled`                     |
+| Form field             | API field                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------ |
+| Event Title            | `title`                                                                              |
+| Description            | `description`                                                                        |
+| Date + Time            | `startsAt` (combined, see above)                                                     |
+| Location               | `location`                                                                           |
+| Event Type             | `eventType`                                                                          |
+| Image                  | `imageUrl` (a link, not the file)                                                    |
+| Invite Guests          | Not an event field: call `POST /api/events/:id/invitations` after creating the event |
+| Maximum Guest Capacity | `maxGuests`                                                                          |
+| Admission Price        | `admissionPrice`                                                                     |
+| Public Event           | `isPublic`                                                                           |
+| Guest Registration     | `rsvpEnabled`                                                                        |
 
 ## Keeping this file up to date
 
 Update this file whenever an endpoint or a validation rule changes. The source of truth is:
 
-- Routes: `src/app.ts`, `src/routes/auth.ts`, `src/routes/events.ts`, `src/routes/health.ts`
+- Routes: `src/app.ts`, `src/routes/auth.ts`, `src/routes/events.ts`, `src/routes/invitations.ts`, `src/routes/health.ts`
 - Which routes need a login: the ones with `requireAuth` (`src/middleware/require-auth.ts`)
-- Input validation: `src/schemas/events-schema.ts`, `src/schemas/auth-schema.ts`
-- Business rules: `src/services/events-service.ts`, `src/services/auth-service.ts`
+- Input validation: `src/schemas/events-schema.ts`, `src/schemas/invitations-schema.ts`, `src/schemas/auth-schema.ts`
+- Business rules: `src/services/events-service.ts`, `src/services/invitations-service.ts`, `src/services/auth-service.ts`
 - GitHub specifics: `src/auth/oauth-providers.ts`
 - Error responses: `src/middleware/error-handler.ts`
 - Database columns: `src/db/schema.ts`
